@@ -145,6 +145,9 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
       <input id="file" type="file" accept=".xls,.xlsx,.csv" hidden>
       <button class="btn" id="btnCfg" type="button" aria-expanded="false">Gerentes da lista</button>
       <button class="btn" id="btnCopy" type="button">Copiar tabela</button>
+      <button class="btn" id="btnPdf" type="button">Baixar PDF</button>
+      <button class="btn" id="btnJpg" type="button">Imagem JPG (esta aba)</button>
+      <button class="btn" id="btnJpgAll" type="button">JPG de todas as abas</button>
       <button class="btn" id="btnClear" type="button">Limpar painel</button>
     </div>
   </header>
@@ -218,6 +221,7 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
 <div class="tip" id="tip" role="tooltip"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 (function(){
 const DEFAULTS=["ANA CAROLINA GARCIA GOMES DOS SANTOS","ANA KARINA FARIA MELO","ANDRE NOGUEIRA DE ARAUJO LUCENA","ERIK ALVES MOURA","FABIO LUIS JACINTO SILVA","JAQUELINE JANAINA DA SILVA NUNCIATTO","JHONATAN ALIX DOS SANTOS MELO","KATIA CRISTINA BELTRAN","LUCAS DOS SANTOS RIBEIRO","RAFAEL DE MENEZES TORRES","RENAN OLIVEIRA FORTES","SHIRLEY FERREIRA LOPES"];
@@ -509,7 +513,89 @@ try{const s=JSON.parse(lsGet('gg_data')||'null');if(s&&Array.isArray(s.rows)&&s.
 if(!data)data={name:'',at:0,total:0,rows:[],example:false,empty:true};
 render();
 window.__gg={parseWorkbook,loadFile};
+/* ===== Exportar: PDF interativo e imagens JPG ===== */
+function expReady(btn){
+  if(!data||!data.rows||!data.rows.length){const t=btn.textContent;btn.textContent='Suba o gerados primeiro';setTimeout(()=>btn.textContent=t,2200);return false}
+  return true;
+}
+function expParts(){
+  const wasAll=showAll;
+  if(!wasAll){showAll=true;table(data.rows.filter(x=>pass(x)))}
+  const get=ids=>ids.map(id=>{const n=$(id).cloneNode(true);n.removeAttribute('hidden');return n.outerHTML}).join('');
+  const out={css:document.querySelector('style').textContent,meta:$('meta').innerHTML,kpis:$('kpis').outerHTML,pages:TABS.map(t=>[t[0],t[1],get(t[2])])};
+  if(!wasAll){showAll=false;table(data.rows.filter(x=>pass(x)))}
+  return out;
+}
+function expStamp(){const d=new Date(),z=n=>String(n).padStart(2,'0');return z(d.getDate())+'-'+z(d.getMonth()+1)}
+$('btnPdf').onclick=function(){
+  if(!expReady(this))return;
+  const x=expParts(),title='Relatório de Contratos Gerados - '+expStamp();
+  const bar=a=>'<nav class="tabs">'+TABS.map(t=>'<a class="tab" href="#p-'+t[0]+'" aria-selected="'+(t[0]===a)+'">'+t[1]+'</a>').join('')+'</nav>';
+  const doc='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>'+title+'</title><style>'+x.css+`
+@page{size:420mm 297mm;margin:10mm}
+html,body{background:#fff}
+body{padding:0!important}
+.wrap{max-width:none!important;gap:14px}
+.pg{break-after:page;display:flex;flex-direction:column;gap:14px}
+.pg:last-child{break-after:auto}
+a.tab{text-decoration:none;display:inline-block;border-bottom:3px solid transparent;margin-bottom:-1px;padding:10px 16px;color:var(--muted)}
+a.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent,#1f7a4d);font-weight:600}
+.tabs{overflow:visible!important}
+.tablewrap{overflow:visible!important}
+[hidden]{display:none!important}
+#openAll,#closeAll,.h2r,.more,#moreWrap,.note{display:none!important}
+tr{break-inside:avoid}
+.card{break-inside:auto;overflow:hidden}
+th{position:static!important}
+.mat th:first-child,.mat td:first-child{position:static!important;width:210px;text-align:left}
+table{min-width:0!important;width:100%}
+td,th{white-space:normal!important}
+.mat th,.mat td{white-space:nowrap!important;min-width:0!important;padding:6px 3px!important;font-size:13px}
+.mat th{font-size:10.5px!important;letter-spacing:0!important}
+.mat{width:100%!important}
+td.r,.pill{white-space:nowrap!important}
+#secEmps{break-before:page}
+</style></head><body><div class="wrap">`+x.pages.map(p=>'<section class="pg" id="p-'+p[0]+'"><h1>Relatório de Contratos Gerados</h1><div class="meta" style="color:var(--muted)">'+x.meta+'</div>'+bar(p[0])+x.kpis+p[2]+'</section>').join('')+'</div></body></html>';
+  const old=document.getElementById('printFrame');if(old)old.remove();
+  const f=document.createElement('iframe');f.id='printFrame';f.setAttribute('aria-hidden','true');
+  f.style.cssText='position:fixed;left:-99999px;top:0;width:1500px;height:900px;border:0';
+  f.onload=()=>{setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){window.print()}},400)};
+  document.body.appendChild(f);f.srcdoc=doc;
+};
+async function expShot(tabKey){
+  const x=expParts(),p=x.pages.find(q=>q[0]===tabKey);
+  const box=document.createElement('div');
+  box.className='wrap';
+  box.style.cssText='position:fixed;left:-99999px;top:0;width:1400px;max-width:none;padding:24px;box-sizing:border-box;background:'+getComputedStyle(document.body).backgroundColor;
+  const hex=n=>{const v=getComputedStyle(document.documentElement).getPropertyValue(n).trim().replace('#','');return [0,2,4].map(i=>parseInt(v.substr(i,2),16))};
+  const A=hex('--accent'),S=hex('--surface');
+  const mixFix=h=>h.replace(/color-mix\(in srgb,var\(--accent\) (\d+)%,var\(--surface\)\)/g,(m,pc)=>{const k=pc/100;return 'rgb('+A.map((a,i)=>Math.round(a*k+S[i]*(1-k))).join(',')+')'});
+  box.innerHTML=mixFix('<h1>Relatório de Contratos Gerados</h1><div class="meta" style="color:var(--muted)">'+x.meta+'</div>'+x.kpis+'<h2 style="margin:18px 0 0;font-size:16px">'+esc(TABS.find(t=>t[0]===tabKey)[1])+'</h2>'+p[2]);
+  box.querySelectorAll('#openAll,#closeAll,.h2r,.more,#moreWrap').forEach(n=>n.remove());
+  box.querySelectorAll('.tablewrap').forEach(n=>{n.style.overflow='visible'});
+  const st=document.createElement('style');
+  st.textContent='th,td,.mat th:first-child,.mat td:first-child{position:static!important}.tablewrap{overflow:visible!important}table{min-width:0!important}';
+  box.prepend(st);
+  document.body.appendChild(box);
+  try{
+    const W=Math.max(1400,...[...box.querySelectorAll('table')].map(t=>t.scrollWidth+60));
+    box.style.width=W+'px';
+    const h=box.scrollHeight,sc=(h>6000||W>2200)?1:2;
+    const c=await html2canvas(box,{scale:sc,backgroundColor:null,useCORS:true,logging:false,windowWidth:W});
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='gerados-'+tabKey+'-'+expStamp()+'.jpg';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  }finally{box.remove()}
+}
+async function expBusy(btn,fn){
+  const t=btn.textContent;btn.disabled=true;btn.textContent='Gerando…';
+  try{await fn()}catch(e){btn.textContent='Não foi possível gerar';await new Promise(r=>setTimeout(r,2200))}
+  btn.disabled=false;btn.textContent=t;
+}
+$('btnJpg').onclick=function(){if(!expReady(this))return;expBusy(this,()=>expShot(tab))};
+$('btnJpgAll').onclick=function(){if(!expReady(this))return;expBusy(this,async()=>{for(const t of TABS){await expShot(t[0]);await new Promise(r=>setTimeout(r,500))}})};
 })();
+
 </script>
 
 </body>
