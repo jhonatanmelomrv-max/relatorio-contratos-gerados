@@ -37,6 +37,11 @@ button{cursor:pointer}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500}
 .btn:hover{border-color:var(--accent)}
+body.lock #pick,body.lock #btnClear{display:none}
+#codeBox{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50}
+#codeBox[hidden]{display:none}
+#codeBox .in{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;width:min(92vw,340px)}
+#codeBox input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;margin:10px 0;font-size:16px;background:var(--surface);color:inherit}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
 .banner{background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
 .banner[hidden]{display:none}
@@ -143,17 +148,19 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
     <div class="actions">
       <label class="btn primary" for="file" tabindex="0" id="pick">Subir o gerados</label>
       <input id="file" type="file" accept=".xls,.xlsx,.csv" hidden>
+      <button class="btn" id="btnAcesso" type="button">Acesso para atualizar</button>
       <button class="btn" id="btnCfg" type="button" aria-expanded="false">Gerentes da lista</button>
       <button class="btn" id="btnCopy" type="button">Copiar tabela</button>
       <button class="btn" id="btnXls" type="button">Baixar Excel</button>
       <button class="btn" id="btnPdf" type="button">Baixar PDF</button>
       <button class="btn" id="btnJpg" type="button">Imagem JPG (esta aba)</button>
       <button class="btn" id="btnJpgAll" type="button">JPG de todas as abas</button>
-      <button class="btn" id="btnClear" type="button">Limpar painel</button>
+      <button class="btn" id="btnClear" type="button">Zerar para todos</button>
     </div>
   </header>
 
   <div class="banner" id="banner" hidden></div>
+  <div id="codeBox" hidden><div class="in"><b>Código de acesso</b><div style="font-size:13px;opacity:.8;margin-top:4px">Só quem tem o código atualiza os dados. Quem não tem só visualiza.</div><input id="codeIn" type="password" inputmode="text" autocomplete="off" placeholder="Digite o código"><div id="codeMsg" style="font-size:13px;color:#c0392b;min-height:18px"></div><div class="actions"><button class="btn primary" id="codeOk" type="button">Entrar</button><button class="btn" id="codeNo" type="button">Cancelar</button></div></div></div>
 
   <section class="card cfg" id="cfg" hidden>
     <h2>Gerentes da lista <small id="cfgCount"></small></h2>
@@ -165,7 +172,7 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
     </div>
   </section>
 
-  <div class="drop" id="drop">Arraste o arquivo de gerados aqui, ou use "Subir o gerados". Os dados são lidos só no seu navegador e não vão para nenhum servidor.</div>
+  <div class="drop" id="drop">Os dados abaixo são os mais recentes publicados e valem para todo mundo. Para atualizar, toque em "Acesso para atualizar" e digite o código.</div>
 
   <div class="filters">
     <div class="grp" id="fCanal"><span>Canal</span></div>
@@ -307,10 +314,10 @@ function loadFile(f){
   fr.onload=()=>setTimeout(()=>{
     try{
       const wb=XLSX.read(new Uint8Array(fr.result),{type:'array',cellDates:true});
-      const p=parseWorkbook(wb);raw=p.rows;src=p.src;idbPut('src',{name:f.name,src:p.src});
+      const p=parseWorkbook(wb);raw=p.rows;src=p.src;
       const set=new Set(managers.map(norm));
       data={name:f.name,at:Date.now(),total:raw.length,rows:raw.filter(r=>set.has(r.sup)),example:false};
-      sel.mgr=null;persist();render();
+      sel.mgr=null;persist();render();publish(f.name);
     }catch(e){setMeta('<b>Erro:</b> '+esc(e.message||e))}
   },30);
   fr.readAsArrayBuffer(f);
@@ -483,7 +490,13 @@ document.addEventListener('click',e=>{
   const r=e.target.closest('[data-mgr]');if(r){sel.mgr=sel.mgr===r.dataset.mgr?null:r.dataset.mgr;render();return}
   const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;sort=sort.k===k?{k,dir:-sort.dir}:{k,dir:(k==='data'||k==='val')?-1:1};table(data.rows.filter(x=>pass(x)));return}
 });
-$('btnClear').onclick=()=>{try{localStorage.removeItem('gg_data')}catch(e){}raw=null;src=null;idbDel('src');data={name:'',at:0,total:0,rows:[],example:false,empty:true};sel={canal:'Todos',status:'Todos',mgr:null,q:''};$('q').value='';openSet.clear();showAll=false;render()};
+$('btnClear').onclick=async()=>{
+  if(!CODE||!confirm('Zerar o painel para TODO MUNDO? Quem abrir o link verá o painel vazio até você subir um novo arquivo.'))return;
+  setMeta('Zerando…');
+  try{const r=await fetch(API+'gerados-zerar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo:CODE})});
+    if(r.status===401){lock();setMeta('<b>Código incorreto.</b> Entre de novo em "Acesso para atualizar".');return}
+    if(!r.ok)throw new Error('servidor '+r.status)}catch(e){setMeta('<b>Não consegui zerar:</b> '+esc(e.message||e));return}
+  clearLocal()};
 $('more').onclick=()=>{showAll=!showAll;table(data.rows.filter(x=>pass(x)))};
 $('openAll').onclick=()=>{managers.forEach(m=>openSet.add(norm(m)));gest(data.rows)};
 $('closeAll').onclick=()=>{openSet.clear();gest(data.rows)};
@@ -493,7 +506,7 @@ $('file').addEventListener('change',e=>{loadFile(e.target.files[0]);e.target.val
 $('pick').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('file').click()}});
 ['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();document.body.classList.add('dragging')}));
 ['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();document.body.classList.remove('dragging')}));
-document.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files[0];if(f)loadFile(f)});
+document.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files[0];if(!f)return;if(!CODE){askCode(()=>loadFile(f));return}loadFile(f)});
 $('btnCfg').onclick=()=>{const h=$('cfg').hidden;$('cfg').hidden=!h;$('btnCfg').setAttribute('aria-expanded',String(h));if(h){$('mgrText').value=managers.join('\n');$('cfgCount').textContent=managers.length+' nomes'}};
 $('cfgSave').onclick=()=>{
   const l=[...new Set($('mgrText').value.split('\n').map(norm).filter(Boolean))];if(!l.length)return;
@@ -517,11 +530,48 @@ document.addEventListener('mousemove',e=>{
 });
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>data&&days(data.rows.filter(r=>pass(r)),data.rows),120)});
 
+/* ---------- acesso e dados compartilhados ---------- */
+const API='https://n8n.equipemaster.shop/webhook/';
+let CODE='';try{CODE=sessionStorage.getItem('gg_code')||''}catch(e){}
+function applyLock(){document.body.classList.toggle('lock',!CODE);$('btnAcesso').textContent=CODE?'Sair do acesso':'Acesso para atualizar'}
+function lock(){CODE='';try{sessionStorage.removeItem('gg_code')}catch(e){}applyLock()}
+function clearLocal(){try{localStorage.removeItem('gg_data')}catch(e){}raw=null;src=null;idbDel('src');data={name:'',at:0,total:0,rows:[],example:false,empty:true};sel={canal:'Todos',status:'Todos',mgr:null,q:''};$('q').value='';openSet.clear();showAll=false;render()}
+function askCode(then){
+  $('codeIn').value='';$('codeMsg').textContent='';$('codeBox').hidden=false;$('codeIn').focus();
+  const go=()=>{const v=$('codeIn').value.trim();if(!v){$('codeMsg').textContent='Digite o código.';return}CODE=v;try{sessionStorage.setItem('gg_code',v)}catch(e){}applyLock();$('codeBox').hidden=true;then&&then()};
+  $('codeOk').onclick=go;$('codeNo').onclick=()=>{$('codeBox').hidden=true};
+  $('codeIn').onkeydown=e=>{if(e.key==='Enter')go();if(e.key==='Escape')$('codeBox').hidden=true};
+}
+$('btnAcesso').onclick=()=>{CODE?lock():askCode()};
+async function publish(name){
+  if(!CODE)return;
+  setMeta('Publicando para todo mundo…');
+  try{
+    const body=JSON.stringify({codigo:CODE,nome:name,payload:JSON.stringify({v:1,name,at:Date.now(),raw,src})});
+    const r=await fetch(API+'gerados-publicar',{method:'POST',headers:{'Content-Type':'application/json'},body});
+    if(r.status===401){lock();render();setMeta('<b>Código incorreto.</b> Os dados NÃO foram publicados. Toque em "Acesso para atualizar" e tente de novo.');return}
+    if(!r.ok)throw new Error('servidor '+r.status);
+    const j=await r.json();if(j.atualizado_em){data.at=new Date(j.atualizado_em).getTime();persist()}
+    render();
+  }catch(e){render();setMeta('<b>Não consegui publicar:</b> '+esc(e.message||e)+'. Só você está vendo estes dados por enquanto.')}
+}
+async function loadShared(){
+  try{
+    const r=await fetch(API+'gerados-dados',{cache:'no-store'});if(!r.ok)return;
+    const j=await r.json();
+    if(!j.payload){if(data&&!data.empty)clearLocal();return}
+    const p=JSON.parse(j.payload);raw=p.raw;src=p.src;
+    const set=new Set(managers.map(norm));
+    data={name:p.name||j.nome||'',at:new Date(j.atualizado_em).getTime(),total:raw.length,rows:raw.filter(x=>set.has(x.sup)),example:false};
+    persist();render();
+  }catch(e){}
+}
+applyLock();
 /* ---------- início ---------- */
 try{const s=JSON.parse(lsGet('gg_data')||'null');if(s&&Array.isArray(s.rows)&&s.rows.length)data=Object.assign(s,{example:false})}catch(e){}
-idbGet('src').then(v=>{if(v&&v.src&&data&&v.name===data.name)src=v.src});
 if(!data)data={name:'',at:0,total:0,rows:[],example:false,empty:true};
 render();
+loadShared();
 window.__gg={parseWorkbook,loadFile};
 /* ===== Exportar: PDF interativo e imagens JPG ===== */
 function expReady(btn){
