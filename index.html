@@ -314,7 +314,7 @@ function loadFile(f){
   fr.onload=()=>setTimeout(()=>{
     try{
       const wb=XLSX.read(new Uint8Array(fr.result),{type:'array',cellDates:true});
-      const p=parseWorkbook(wb);raw=p.rows;src=p.src;
+      const p=parseWorkbook(wb);raw=p.rows;src=p.src;lsSet('gg_unpub','1');idbPut('src',{name:f.name,src:p.src,raw:p.rows});
       const set=new Set(managers.map(norm));
       data={name:f.name,at:Date.now(),total:raw.length,rows:raw.filter(r=>set.has(r.sup)),example:false};
       sel.mgr=null;persist();render();publish(f.name);
@@ -551,7 +551,7 @@ async function publish(name){
     const r=await fetch(API+'gerados-publicar',{method:'POST',headers:{'Content-Type':'application/json'},body});
     if(r.status===401){lock();render();setMeta('<b>Código incorreto.</b> Os dados NÃO foram publicados. Toque em "Acesso para atualizar" e tente de novo.');return}
     if(!r.ok)throw new Error('servidor '+r.status);
-    const j=await r.json();if(j.atualizado_em){data.at=new Date(j.atualizado_em).getTime();persist()}
+    const j=await r.json();try{localStorage.removeItem('gg_unpub')}catch(e){}if(j.atualizado_em){data.at=new Date(j.atualizado_em).getTime();persist()}
     render();
   }catch(e){render();setMeta('<b>Não consegui publicar:</b> '+esc(e.message||e)+'. Só você está vendo estes dados por enquanto.')}
 }
@@ -559,7 +559,13 @@ async function loadShared(){
   try{
     const r=await fetch(API+'gerados-dados',{cache:'no-store'});if(!r.ok)return;
     const j=await r.json();
-    if(!j.payload){if(data&&!data.empty)clearLocal();return}
+    if(!j.payload){
+      if(data&&!data.empty&&lsGet('gg_unpub')==='1'){
+        render();
+        if(CODE&&raw){publish(data.name)}
+        else setMeta('<b>Estes dados ainda NÃO foram publicados</b> — só você está vendo. Toque em "Acesso para atualizar", digite o código e suba o arquivo de novo.');
+        return}
+      if(data&&!data.empty)clearLocal();return}
     const p=JSON.parse(j.payload);raw=p.raw;src=p.src;
     const set=new Set(managers.map(norm));
     data={name:p.name||j.nome||'',at:new Date(j.atualizado_em).getTime(),total:raw.length,rows:raw.filter(x=>set.has(x.sup)),example:false};
@@ -571,7 +577,7 @@ applyLock();
 try{const s=JSON.parse(lsGet('gg_data')||'null');if(s&&Array.isArray(s.rows)&&s.rows.length)data=Object.assign(s,{example:false})}catch(e){}
 if(!data)data={name:'',at:0,total:0,rows:[],example:false,empty:true};
 render();
-loadShared();
+idbGet('src').then(v=>{if(v&&v.src&&data&&v.name===data.name){src=v.src;if(v.raw)raw=v.raw}}).then(loadShared);
 window.__gg={parseWorkbook,loadFile};
 /* ===== Exportar: PDF interativo e imagens JPG ===== */
 function expReady(btn){
