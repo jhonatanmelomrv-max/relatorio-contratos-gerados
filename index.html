@@ -145,6 +145,7 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
       <input id="file" type="file" accept=".xls,.xlsx,.csv" hidden>
       <button class="btn" id="btnCfg" type="button" aria-expanded="false">Gerentes da lista</button>
       <button class="btn" id="btnCopy" type="button">Copiar tabela</button>
+      <button class="btn" id="btnXls" type="button">Baixar Excel</button>
       <button class="btn" id="btnPdf" type="button">Baixar PDF</button>
       <button class="btn" id="btnJpg" type="button">Imagem JPG (esta aba)</button>
       <button class="btn" id="btnJpgAll" type="button">JPG de todas as abas</button>
@@ -222,6 +223,7 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 (function(){
 const DEFAULTS=["ANA CAROLINA GARCIA GOMES DOS SANTOS","ANA KARINA FARIA MELO","ANDRE NOGUEIRA DE ARAUJO LUCENA","ERIK ALVES MOURA","FABIO LUIS JACINTO SILVA","JAQUELINE JANAINA DA SILVA NUNCIATTO","JHONATAN ALIX DOS SANTOS MELO","KATIA CRISTINA BELTRAN","LUCAS DOS SANTOS RIBEIRO","RAFAEL DE MENEZES TORRES","RENAN OLIVEIRA FORTES","SHIRLEY FERREIRA LOPES"];
@@ -527,42 +529,7 @@ function expParts(){
   return out;
 }
 function expStamp(){const d=new Date(),z=n=>String(n).padStart(2,'0');return z(d.getDate())+'-'+z(d.getMonth()+1)}
-$('btnPdf').onclick=function(){
-  if(!expReady(this))return;
-  const x=expParts(),title='Relatório de Contratos Gerados - '+expStamp();
-  const bar=a=>'<nav class="tabs">'+TABS.map(t=>'<a class="tab" href="#p-'+t[0]+'" aria-selected="'+(t[0]===a)+'">'+t[1]+'</a>').join('')+'</nav>';
-  const doc='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>'+title+'</title><style>'+x.css+`
-@page{size:420mm 297mm;margin:10mm}
-html,body{background:#fff}
-body{padding:0!important}
-.wrap{max-width:none!important;gap:14px}
-.pg{break-after:page;display:flex;flex-direction:column;gap:14px}
-.pg:last-child{break-after:auto}
-a.tab{text-decoration:none;display:inline-block;border-bottom:3px solid transparent;margin-bottom:-1px;padding:10px 16px;color:var(--muted)}
-a.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent,#1f7a4d);font-weight:600}
-.tabs{overflow:visible!important}
-.tablewrap{overflow:visible!important}
-[hidden]{display:none!important}
-#openAll,#closeAll,.h2r,.more,#moreWrap,.note{display:none!important}
-tr{break-inside:avoid}
-.card{break-inside:auto;overflow:hidden}
-th{position:static!important}
-.mat th:first-child,.mat td:first-child{position:static!important;width:210px;text-align:left}
-table{min-width:0!important;width:100%}
-td,th{white-space:normal!important}
-.mat th,.mat td{white-space:nowrap!important;min-width:0!important;padding:6px 3px!important;font-size:13px}
-.mat th{font-size:10.5px!important;letter-spacing:0!important}
-.mat{width:100%!important}
-td.r,.pill{white-space:nowrap!important}
-#secEmps{break-before:page}
-</style></head><body><div class="wrap">`+x.pages.map(p=>'<section class="pg" id="p-'+p[0]+'"><h1>Relatório de Contratos Gerados</h1><div class="meta" style="color:var(--muted)">'+x.meta+'</div>'+bar(p[0])+x.kpis+p[2]+'</section>').join('')+'</div></body></html>';
-  const old=document.getElementById('printFrame');if(old)old.remove();
-  const f=document.createElement('iframe');f.id='printFrame';f.setAttribute('aria-hidden','true');
-  f.style.cssText='position:fixed;left:-99999px;top:0;width:1500px;height:900px;border:0';
-  f.onload=()=>{setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){window.print()}},400)};
-  document.body.appendChild(f);f.srcdoc=doc;
-};
-async function expShot(tabKey){
+async function expCanvas(tabKey){
   const x=expParts(),p=x.pages.find(q=>q[0]===tabKey);
   const box=document.createElement('div');
   box.className='wrap';
@@ -582,18 +549,93 @@ async function expShot(tabKey){
     box.style.width=W+'px';
     const h=box.scrollHeight,sc=(h>6000||W>2200)?1:2;
     const c=await html2canvas(box,{scale:sc,backgroundColor:null,useCORS:true,logging:false,windowWidth:W});
-    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='gerados-'+tabKey+'-'+expStamp()+'.jpg';
-    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    return {c:c,w:W,sc:sc};
   }finally{box.remove()}
+}
+function expSave(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+async function expShot(tabKey){
+  const r=await expCanvas(tabKey);
+  const blob=await new Promise(res=>r.c.toBlob(res,'image/jpeg',0.92));
+  expSave(blob,'gerados-'+tabKey+'-'+expStamp()+'.jpg');
+}
+async function expPdf(){
+  const J=window.jspdf&&window.jspdf.jsPDF;if(!J)throw new Error('jsPDF');
+  const PW=1400,NAV=46,MAXH=3600;
+  const plan=[];const imgs={};
+  for(const t of TABS){
+    const r=await expCanvas(t[0]);imgs[t[0]]=r;
+    const k=PW/(r.c.width),H=r.c.height*k,n=Math.max(1,Math.ceil(H/MAXH));
+    for(let i=0;i<n;i++){plan.push({tab:t[0],i:i,n:n,y0:Math.round(i*MAXH/k),h:Math.min(r.c.height-Math.round(i*MAXH/k),Math.round(MAXH/k)),k:k})}
+  }
+  const first={};plan.forEach((q,ix)=>{if(!(q.tab in first))first[q.tab]=ix+1});
+  const bgc=getComputedStyle(document.body).backgroundColor.match(/\d+/g).map(Number);
+  let doc=null;
+  plan.forEach((q,ix)=>{
+    const ph=NAV+q.h*q.k;
+    if(!doc)doc=new J({unit:'pt',format:[PW,ph],orientation:ph>PW?'p':'l',compress:true});else doc.addPage([PW,ph],ph>PW?'p':'l');
+    doc.setFillColor(bgc[0],bgc[1],bgc[2]);doc.rect(0,0,PW,ph,'F');
+    let x=24;doc.setFontSize(15);
+    TABS.forEach(t=>{
+      const w=doc.getTextWidth(t[1])+34,on=t[0]===q.tab;
+      doc.setFillColor(on?14:255,on?122:255,on?82:255);doc.roundedRect(x,8,w,30,6,6,'F');
+      doc.setDrawColor(200,208,203);if(!on)doc.roundedRect(x,8,w,30,6,6,'S');
+      doc.setTextColor(on?255:19,on?255:32,on?255:26);doc.text(t[1],x+17,28);
+      doc.link(x,8,w,30,{pageNumber:first[t[0]]});
+      x+=w+10;
+    });
+    const src=imgs[q.tab].c;
+    const sl=document.createElement('canvas');sl.width=src.width;sl.height=q.h;
+    sl.getContext('2d').drawImage(src,0,q.y0,src.width,q.h,0,0,src.width,q.h);
+    doc.addImage(sl.toDataURL('image/jpeg',0.9),'JPEG',0,NAV,PW,q.h*q.k);
+  });
+  doc.setProperties({title:'Relatório de Contratos Gerados - '+expStamp()});
+  doc.save('Relatorio-Contratos-Gerados-'+expStamp()+'.pdf');
 }
 async function expBusy(btn,fn){
   const t=btn.textContent;btn.disabled=true;btn.textContent='Gerando…';
   try{await fn()}catch(e){btn.textContent='Não foi possível gerar';await new Promise(r=>setTimeout(r,2200))}
   btn.disabled=false;btn.textContent=t;
 }
+$('btnPdf').onclick=function(){if(!expReady(this))return;expBusy(this,expPdf)};
 $('btnJpg').onclick=function(){if(!expReady(this))return;expBusy(this,()=>expShot(tab))};
 $('btnJpgAll').onclick=function(){if(!expReady(this))return;expBusy(this,async()=>{for(const t of TABS){await expShot(t[0]);await new Promise(r=>setTimeout(r,500))}})};
+
+function expXlsx(){
+  const X=window.XLSX,wb=X.utils.book_new();
+  const BRL='"R$" #,##0.00',D=iso=>iso?iso.split('-').reverse().join('/'):'';
+  // Visão de gestão
+  const by={};managers.forEach(m=>{by[norm(m)]=[]});
+  data.rows.forEach(r=>{if(pass(r,true)&&by[r.sup])by[r.sup].push(r)});
+  const g=Object.keys(by).map(k=>({m:k,l:by[k]})).sort((a,b)=>b.l.length-a.l.length||a.m.localeCompare(b.m));
+  const gA=[['Gerente','Gerados','Ganhas','Em andamento','% ganhas','VGV','Ticket médio','Corretores','Último gerado']];
+  let T=0,TG=0,TV=0;
+  g.forEach(x=>{const n=x.l.length,gn=x.l.filter(r=>r.st==='g').length,v=x.l.reduce((a,r)=>a+r.val,0);T+=n;TG+=gn;TV+=v;
+    const last=x.l.map(r=>r.data).filter(Boolean).sort().pop()||'';
+    gA.push([title(x.m.toLowerCase()),n,gn,n-gn,n?gn/n:0,v,n?v/n:0,new Set(x.l.map(r=>r.cor)).size,D(last)])});
+  gA.push(['Total geral',T,TG,T-TG,T?TG/T:0,TV,T?TV/T:0,'','']);
+  const wg=X.utils.aoa_to_sheet(gA);
+  for(let r=1;r<gA.length;r++){wg['E'+(r+1)].z='0%';wg['F'+(r+1)].z=BRL;wg['G'+(r+1)].z=BRL}
+  wg['!cols']=[{wch:40},{wch:10},{wch:10},{wch:14},{wch:10},{wch:18},{wch:18},{wch:11},{wch:14}];
+  X.utils.book_append_sheet(wb,wg,'Visão de gestão');
+  // Resumo Gerentes e Resumo Geração (mesmas matrizes do painel)
+  [['matEmp','Resumo Gerentes'],['matDia','Resumo Geração']].forEach(([id,nm])=>{
+    const w=X.utils.table_to_sheet($(id));
+    const rg=X.utils.decode_range(w['!ref']||'A1');
+    w['!cols']=Array.from({length:rg.e.c+1},(_,i)=>({wch:i?(nm==='Resumo Geração'?7:14):40}));
+    X.utils.book_append_sheet(wb,w,nm);
+  });
+  // Gerados Vale (lista completa, com as colunas do relatório)
+  const L=data.rows.filter(x=>pass(x)).slice().sort((a,b)=>String(b.data).localeCompare(String(a.data))||a.sup.localeCompare(b.sup));
+  const vA=[['Superior Direto do Corretor','Corretor','Cliente','Empreendimento','Bloco','Produto','Loja','Tipo Canal','Status da Oportunidade','Valor da Proposta','Geração','Regional','Cidade']];
+  L.forEach(r=>vA.push([title(r.sup.toLowerCase()),title(r.cor.toLowerCase()),r.cli,r.emp,r.blo,r.uni,r.loja,r.canal,r.stTxt,r.val,D(r.data),r.reg||'',r.cid||'']));
+  const wv=X.utils.aoa_to_sheet(vA);
+  for(let r=1;r<vA.length;r++){wv['J'+(r+1)].z=BRL}
+  wv['!cols']=[{wch:36},{wch:30},{wch:36},{wch:26},{wch:12},{wch:10},{wch:26},{wch:14},{wch:22},{wch:18},{wch:12},{wch:14},{wch:18}];
+  wv['!autofilter']={ref:wv['!ref']};
+  X.utils.book_append_sheet(wb,wv,'Gerados Vale');
+  X.writeFile(wb,'Relatorio-Contratos-Gerados-'+expStamp()+'.xlsx');
+}
+$('btnXls').onclick=function(){if(!expReady(this))return;expBusy(this,async()=>expXlsx())};
 })();
 
 </script>
