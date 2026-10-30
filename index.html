@@ -241,6 +241,11 @@ const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 
 let managers=DEFAULTS.slice();
 try{const m=JSON.parse(lsGet('gg_managers')||'null');if(Array.isArray(m)&&m.length)managers=m}catch(e){}
+let src=null;            // planilha original (todas as colunas) para o Excel completo
+const idb=()=>new Promise((res,rej)=>{const q=indexedDB.open('gg_db',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});
+async function idbPut(k,v){try{const d=await idb();await new Promise((res,rej)=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){}}
+async function idbGet(k){try{const d=await idb();return await new Promise((res,rej)=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}catch(e){return null}}
+async function idbDel(k){try{const d=await idb();await new Promise(res=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').delete(k);t.oncomplete=res;t.onerror=res})}catch(e){}}
 let raw=null;            // todas as linhas lidas do arquivo (só na memória)
 let data=null;           // {name, at, total, rows, example}
 let sel={canal:'Todos',status:'Todos',mgr:null,q:''};
@@ -279,7 +284,7 @@ function parseWorkbook(wb){
     out.push({sup:norm(x[c.sup]),cor:norm(x[c.cor]),cli:String(x[c.cli]||'').trim(),emp:String(x[c.emp]||'').trim(),blo:String(x[c.blo]||'').trim(),uni:String(x[c.uni]==null?'':x[c.uni]),loja:String(x[c.loja]||'').trim(),canal:String(x[c.canal]||'').trim()||'—',
       st:stt.startsWith('GANH')?'g':(stt.startsWith('PRE')?'p':'a'),stTxt:String(x[c.st]||'').trim(),val:Number(x[c.val])||0,data:isoFrom(x[c.ger]),reg:String(x[c.reg]||'').trim(),cid:String(x[c.cid]||'').trim()});
   }
-  return {rows:out,sheet:best.name};
+  return {rows:out,sheet:best.name,src:{head:aoa.slice(0,h+1),body:aoa.slice(h+1).filter(x=>x&&String(x[c.sup]||'').trim()),supCol:c.sup}};
 }
 function applyList(){
   if(!raw)return;
@@ -300,7 +305,7 @@ function loadFile(f){
   fr.onload=()=>setTimeout(()=>{
     try{
       const wb=XLSX.read(new Uint8Array(fr.result),{type:'array',cellDates:true});
-      const p=parseWorkbook(wb);raw=p.rows;
+      const p=parseWorkbook(wb);raw=p.rows;src=p.src;idbPut('src',{name:f.name,src:p.src});
       const set=new Set(managers.map(norm));
       data={name:f.name,at:Date.now(),total:raw.length,rows:raw.filter(r=>set.has(r.sup)),example:false};
       sel.mgr=null;persist();render();
@@ -476,7 +481,7 @@ document.addEventListener('click',e=>{
   const r=e.target.closest('[data-mgr]');if(r){sel.mgr=sel.mgr===r.dataset.mgr?null:r.dataset.mgr;render();return}
   const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;sort=sort.k===k?{k,dir:-sort.dir}:{k,dir:(k==='data'||k==='val')?-1:1};table(data.rows.filter(x=>pass(x)));return}
 });
-$('btnClear').onclick=()=>{try{localStorage.removeItem('gg_data')}catch(e){}raw=null;data={name:'',at:0,total:0,rows:[],example:false,empty:true};sel={canal:'Todos',status:'Todos',mgr:null,q:''};$('q').value='';openSet.clear();showAll=false;render()};
+$('btnClear').onclick=()=>{try{localStorage.removeItem('gg_data')}catch(e){}raw=null;src=null;idbDel('src');data={name:'',at:0,total:0,rows:[],example:false,empty:true};sel={canal:'Todos',status:'Todos',mgr:null,q:''};$('q').value='';openSet.clear();showAll=false;render()};
 $('more').onclick=()=>{showAll=!showAll;table(data.rows.filter(x=>pass(x)))};
 $('openAll').onclick=()=>{managers.forEach(m=>openSet.add(norm(m)));gest(data.rows)};
 $('closeAll').onclick=()=>{openSet.clear();gest(data.rows)};
@@ -512,6 +517,7 @@ let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>data&&d
 
 /* ---------- início ---------- */
 try{const s=JSON.parse(lsGet('gg_data')||'null');if(s&&Array.isArray(s.rows)&&s.rows.length)data=Object.assign(s,{example:false})}catch(e){}
+idbGet('src').then(v=>{if(v&&v.src&&data&&v.name===data.name)src=v.src});
 if(!data)data={name:'',at:0,total:0,rows:[],example:false,empty:true};
 render();
 window.__gg={parseWorkbook,loadFile};
@@ -601,41 +607,46 @@ $('btnJpg').onclick=function(){if(!expReady(this))return;expBusy(this,()=>expSho
 $('btnJpgAll').onclick=function(){if(!expReady(this))return;expBusy(this,async()=>{for(const t of TABS){await expShot(t[0]);await new Promise(r=>setTimeout(r,500))}})};
 
 function expXlsx(){
-  const X=window.XLSX,wb=X.utils.book_new();
-  const BRL='"R$" #,##0.00',D=iso=>iso?iso.split('-').reverse().join('/'):'';
-  // Visão de gestão
-  const by={};managers.forEach(m=>{by[norm(m)]=[]});
-  data.rows.forEach(r=>{if(pass(r,true)&&by[r.sup])by[r.sup].push(r)});
-  const g=Object.keys(by).map(k=>({m:k,l:by[k]})).sort((a,b)=>b.l.length-a.l.length||a.m.localeCompare(b.m));
-  const gA=[['Gerente','Gerados','Ganhas','Em andamento','% ganhas','VGV','Ticket médio','Corretores','Último gerado']];
-  let T=0,TG=0,TV=0;
-  g.forEach(x=>{const n=x.l.length,gn=x.l.filter(r=>r.st==='g').length,v=x.l.reduce((a,r)=>a+r.val,0);T+=n;TG+=gn;TV+=v;
-    const last=x.l.map(r=>r.data).filter(Boolean).sort().pop()||'';
-    gA.push([title(x.m.toLowerCase()),n,gn,n-gn,n?gn/n:0,v,n?v/n:0,new Set(x.l.map(r=>r.cor)).size,D(last)])});
-  gA.push(['Total geral',T,TG,T-TG,T?TG/T:0,TV,T?TV/T:0,'','']);
-  const wg=X.utils.aoa_to_sheet(gA);
-  for(let r=1;r<gA.length;r++){wg['E'+(r+1)].z='0%';wg['F'+(r+1)].z=BRL;wg['G'+(r+1)].z=BRL}
-  wg['!cols']=[{wch:40},{wch:10},{wch:10},{wch:14},{wch:10},{wch:18},{wch:18},{wch:11},{wch:14}];
-  X.utils.book_append_sheet(wb,wg,'Visão de gestão');
-  // Resumo Gerentes e Resumo Geração (mesmas matrizes do painel)
-  [['matEmp','Resumo Gerentes'],['matDia','Resumo Geração']].forEach(([id,nm])=>{
-    const w=X.utils.table_to_sheet($(id));
-    const rg=X.utils.decode_range(w['!ref']||'A1');
-    w['!cols']=Array.from({length:rg.e.c+1},(_,i)=>({wch:i?(nm==='Resumo Geração'?7:14):40}));
-    X.utils.book_append_sheet(wb,w,nm);
-  });
-  // Gerados Vale (lista completa, com as colunas do relatório)
-  const L=data.rows.filter(x=>pass(x)).slice().sort((a,b)=>String(b.data).localeCompare(String(a.data))||a.sup.localeCompare(b.sup));
-  const vA=[['Superior Direto do Corretor','Corretor','Cliente','Empreendimento','Bloco','Produto','Loja','Tipo Canal','Status da Oportunidade','Valor da Proposta','Geração','Regional','Cidade']];
-  L.forEach(r=>vA.push([title(r.sup.toLowerCase()),title(r.cor.toLowerCase()),r.cli,r.emp,r.blo,r.uni,r.loja,r.canal,r.stTxt,r.val,D(r.data),r.reg||'',r.cid||'']));
-  const wv=X.utils.aoa_to_sheet(vA);
-  for(let r=1;r<vA.length;r++){wv['J'+(r+1)].z=BRL}
-  wv['!cols']=[{wch:36},{wch:30},{wch:36},{wch:26},{wch:12},{wch:10},{wch:26},{wch:14},{wch:22},{wch:18},{wch:12},{wch:14},{wch:18}];
-  wv['!autofilter']={ref:wv['!ref']};
+  const X=window.XLSX,wb=X.utils.book_new(),set=new Set(managers.map(norm));
+  const D=iso=>iso?iso.split('-').reverse().join('/'):'';
+  const opt={cellDates:true,dateNF:'dd/mm/yyyy'};
+  const ncol=Math.max(...src.head.map(r=>r.length),0);
+  const widths=n=>Array.from({length:n},(_,i)=>({wch:i===0?18:18}));
+  // Gerados Completo (arquivo inteiro, todas as colunas) e Gerados Vale (só os gerentes da lista)
+  const vale=src.body.filter(x=>set.has(norm(x[src.supCol])));
+  const fmtDates=w=>{for(const k in w){if(k[0]==='!')continue;const c=w[k];if(c&&c.t==='d'&&c.v instanceof Date){const d=c.v;c.z=(d.getHours()||d.getMinutes()||d.getSeconds())?'dd/mm/yyyy hh:mm:ss':'dd/mm/yyyy'}}return w};
+  const wc=fmtDates(X.utils.aoa_to_sheet(src.head.concat(src.body),opt));wc['!cols']=widths(ncol);wc['!autofilter']={ref:wc['!ref']};
+  const wv=fmtDates(X.utils.aoa_to_sheet(src.head.concat(vale),opt));wv['!cols']=widths(ncol);wv['!autofilter']={ref:wv['!ref']};
+  // Resumos (tabelas dinâmicas de contagem de Produto)
+  const rows=data.rows,LBL={JERIVAS:'JERIVÁS',SABIA:'SABIÁ'};
+  const pivot=(keyOf,labelOf,cmp,top)=>{
+    const cell={},ct={},mt={};let all=0;
+    rows.forEach(r=>{const c=keyOf(r);if(!c)return;(cell[r.sup]=cell[r.sup]||{})[c]=(cell[r.sup][c]||0)+1;ct[c]=(ct[c]||0)+1;mt[r.sup]=(mt[r.sup]||0)+1;all++});
+    const cols=Object.keys(ct).sort(cmp),mg=Object.keys(mt).sort((a,b)=>a.localeCompare(b)),out=[];
+    if(top)out.push(top);
+    out.push(['Superior Direto do Corretor'].concat(cols.map(labelOf),['Total Geral']));
+    mg.forEach(m=>out.push([m].concat(cols.map(c=>cell[m][c]||''),[mt[m]])));
+    out.push(['Total Geral'].concat(cols.map(c=>ct[c]),[all]));
+    return out;
+  };
+  const cmpEmp=(a,b)=>{const i=EMP_ORDER.indexOf(a),j=EMP_ORDER.indexOf(b);return (i<0?99:i)-(j<0?99:j)||a.localeCompare(b)};
+  const lblEmp=c=>LBL[c]||c;
+  const sheet=(aoa,w0,w)=>{const x=X.utils.aoa_to_sheet(aoa);x['!cols']=[{wch:w0}].concat(Array.from({length:(aoa[0].length||2)-1},()=>({wch:w})));return x};
+  const aGer=pivot(empKey,lblEmp,cmpEmp,['Contagem de Produto','Empreendimento']);
+  const aDia=pivot(r=>r.data,D,(a,b)=>a.localeCompare(b),['Contagem de Produto','Geração']);
+  const aProd=pivot(empKey,lblEmp,cmpEmp,null);
+  X.utils.book_append_sheet(wb,wc,'Gerados Completo');
   X.utils.book_append_sheet(wb,wv,'Gerados Vale');
-  X.writeFile(wb,'Relatorio-Contratos-Gerados-'+expStamp()+'.xlsx');
+  X.utils.book_append_sheet(wb,sheet(aGer,40,13),'Resumo Gerentes');
+  X.utils.book_append_sheet(wb,sheet(aDia,40,11),'Resumo Geração');
+  X.utils.book_append_sheet(wb,sheet(aProd,40,13),'Produto');
+  X.writeFile(wb,'Relatorio-Contratos-Gerados-'+expStamp()+'.xlsx',{cellDates:true});
 }
-$('btnXls').onclick=function(){if(!expReady(this))return;expBusy(this,async()=>expXlsx())};
+$('btnXls').onclick=function(){
+  if(!expReady(this))return;
+  if(!src){const t=this.textContent;this.textContent='Suba o arquivo de novo (1 vez)';setTimeout(()=>this.textContent=t,3500);return}
+  expBusy(this,async()=>expXlsx());
+};
 })();
 
 </script>
