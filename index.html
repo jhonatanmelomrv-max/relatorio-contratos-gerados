@@ -224,6 +224,7 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 (function(){
 const DEFAULTS=["ANA CAROLINA GARCIA GOMES DOS SANTOS","ANA KARINA FARIA MELO","ANDRE NOGUEIRA DE ARAUJO LUCENA","ERIK ALVES MOURA","FABIO LUIS JACINTO SILVA","JAQUELINE JANAINA DA SILVA NUNCIATTO","JHONATAN ALIX DOS SANTOS MELO","KATIA CRISTINA BELTRAN","LUCAS DOS SANTOS RIBEIRO","RAFAEL DE MENEZES TORRES","RENAN OLIVEIRA FORTES","SHIRLEY FERREIRA LOPES"];
@@ -606,46 +607,55 @@ $('btnPdf').onclick=function(){if(!expReady(this))return;expBusy(this,expPdf)};
 $('btnJpg').onclick=function(){if(!expReady(this))return;expBusy(this,()=>expShot(tab))};
 $('btnJpgAll').onclick=function(){if(!expReady(this))return;expBusy(this,async()=>{for(const t of TABS){await expShot(t[0]);await new Promise(r=>setTimeout(r,500))}})};
 
-function expXlsx(){
-  const X=window.XLSX,wb=X.utils.book_new(),set=new Set(managers.map(norm));
+const XS={"wc":[21.54,31.0,9.27,14.73,12.18,13.45,13.45,13.45,18.82,8.0,13.45,22.18,21.54,13.45,13.45,31.45,13.45,15.27,17.45,13.45,13.45,13.45,13.45,6.45,13.45,13.45,17.45,17.45,8.18,13.45,21.73,17.45,19.82,23.27,18.27,13.45,13.45,13.45,17.73,26.82,13.45,13.45,30.73,13.45,13.45,13.45,13.45,13.45,13.45,20.27,36.73,13.45,13.45,13.45,13.45,19.45,20.0,13.45,14.73,17.54,19.27,25.18,21.73,23.45,13.45,13.45,17.18,20.82,15.45,14.45,16.18,13.45,13.45,13.45,13.45],"fm":{"17":"[$-10416]d/m/yyyy","24":"[$-10416]d/m/yyyy","25":"[$-10416]d/m/yyyy","31":"[$-10416]#,##0.00;\\-#,##0.00","34":"[$-10416]#,##0.00;\\(#,##0.00\\)","35":"[$-10416]0.00%","43":"[$-10416]d/m/yyyy","45":"[$-10416]d/m/yyyy","47":"[$-10416]d/m/yyyy","49":"[$-10416]d/m/yyyy","60":"[$-10416]d/m/yyyy","61":"[$-10416]d/m/yyyy","64":"[$-10416]d/m/yyyy"},"ger":[41.82,16.63,8.27,9.91,8.36,7.45,5.82,10.45,12.0,14.09,10.18,8.27,9.09,6.63,6.09,6.27,8.73,8.54,6.73,9.82],"dia":[41.82,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,10.09,9.82],"prod":[41.82,9.73,8.27,9.91,8.36,7.45,5.82,10.45,12.0,14.09,9.63,8.27,9.09,6.09,6.09,6.27,8.73,8.54,6.73,9.82]};
+async function expXlsx(){
+  const E=window.ExcelJS,wb=new E.Workbook(),set=new Set(managers.map(norm));
   const D=iso=>iso?iso.split('-').reverse().join('/'):'';
-  const opt={cellDates:true,dateNF:'dd/mm/yyyy'};
+  const th={style:'thin'},BORD={top:th,left:th,bottom:th,right:th};
+  const cell=v=>v==null||v===''?null:(v instanceof Date?new Date(Date.UTC(v.getFullYear(),v.getMonth(),v.getDate(),v.getHours(),v.getMinutes(),v.getSeconds())):v);
   const ncol=Math.max(...src.head.map(r=>r.length),0);
-  const widths=n=>Array.from({length:n},(_,i)=>({wch:i===0?18:18}));
-  // Gerados Completo (arquivo inteiro, todas as colunas) e Gerados Vale (só os gerentes da lista)
+  const HS={font:{name:'Calibri',size:10,bold:true,color:{argb:'FFFFFFFF'}},fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF008080'}},alignment:{horizontal:'center',vertical:'top',wrapText:true},border:BORD};
+  const BS=Array.from({length:ncol},(_,i)=>({font:{name:'Calibri',size:8,color:{argb:'FF000000'}},alignment:{horizontal:'center',vertical:'middle',wrapText:true},border:BORD,numFmt:XS.fm[i]||'General'}));
+  const dataSheet=(name,body,widths,frozen,hdrH)=>{
+    const ws=wb.addWorksheet(name,{views:[frozen?{state:'frozen',xSplit:1,ySplit:1,showGridLines:false}:{showGridLines:true}]});
+    if(widths)ws.columns=Array.from({length:ncol},(_,i)=>({width:widths[i]||8.43}));
+    src.head.forEach(h=>{const r=ws.addRow(Array.from({length:ncol},(_,i)=>cell(h[i])));r.height=hdrH;for(let i=1;i<=ncol;i++)r.getCell(i).style=HS});
+    body.forEach(x=>{const r=ws.addRow(Array.from({length:ncol},(_,i)=>cell(x[i])));for(let i=0;i<ncol;i++)r.getCell(i+1).style=BS[i]});
+    return ws;
+  };
   const vale=src.body.filter(x=>set.has(norm(x[src.supCol])));
-  const fmtDates=w=>{for(const k in w){if(k[0]==='!')continue;const c=w[k];if(c&&c.t==='d'&&c.v instanceof Date){const d=c.v;c.z=(d.getHours()||d.getMinutes()||d.getSeconds())?'dd/mm/yyyy hh:mm:ss':'dd/mm/yyyy'}}return w};
-  const wc=fmtDates(X.utils.aoa_to_sheet(src.head.concat(src.body),opt));wc['!cols']=widths(ncol);wc['!autofilter']={ref:wc['!ref']};
-  const wv=fmtDates(X.utils.aoa_to_sheet(src.head.concat(vale),opt));wv['!cols']=widths(ncol);wv['!autofilter']={ref:wv['!ref']};
-  // Resumos (tabelas dinâmicas de contagem de Produto)
+  dataSheet('Gerados Completo',src.body,XS.wc,true,52);
+  dataSheet('Gerados Vale ',vale,null,false,65);
+  // resumos (contagem de Produto)
   const rows=data.rows,LBL={JERIVAS:'JERIVÁS',SABIA:'SABIÁ'};
-  const pivot=(keyOf,labelOf,cmp,top)=>{
-    const cell={},ct={},mt={};let all=0;
-    rows.forEach(r=>{const c=keyOf(r);if(!c)return;(cell[r.sup]=cell[r.sup]||{})[c]=(cell[r.sup][c]||0)+1;ct[c]=(ct[c]||0)+1;mt[r.sup]=(mt[r.sup]||0)+1;all++});
+  const pivot=(keyOf,labelOf,cmp,top,lastLabel)=>{
+    const cl={},ct={},mt={};let all=0;
+    rows.forEach(r=>{const c=keyOf(r);if(!c)return;(cl[r.sup]=cl[r.sup]||{})[c]=(cl[r.sup][c]||0)+1;ct[c]=(ct[c]||0)+1;mt[r.sup]=(mt[r.sup]||0)+1;all++});
     const cols=Object.keys(ct).sort(cmp),mg=Object.keys(mt).sort((a,b)=>a.localeCompare(b)),out=[];
     if(top)out.push(top);
     out.push(['Superior Direto do Corretor'].concat(cols.map(labelOf),['Total Geral']));
-    mg.forEach(m=>out.push([m].concat(cols.map(c=>cell[m][c]||''),[mt[m]])));
-    out.push(['Total Geral'].concat(cols.map(c=>ct[c]),[all]));
+    mg.forEach(m=>out.push([m].concat(cols.map(c=>cl[m][c]||''),[mt[m]])));
+    out.push([lastLabel].concat(cols.map(c=>ct[c]),[all]));
     return out;
   };
   const cmpEmp=(a,b)=>{const i=EMP_ORDER.indexOf(a),j=EMP_ORDER.indexOf(b);return (i<0?99:i)-(j<0?99:j)||a.localeCompare(b)};
   const lblEmp=c=>LBL[c]||c;
-  const sheet=(aoa,w0,w)=>{const x=X.utils.aoa_to_sheet(aoa);x['!cols']=[{wch:w0}].concat(Array.from({length:(aoa[0].length||2)-1},()=>({wch:w})));return x};
-  const aGer=pivot(empKey,lblEmp,cmpEmp,['Contagem de Produto','Empreendimento']);
-  const aDia=pivot(r=>r.data,D,(a,b)=>a.localeCompare(b),['Contagem de Produto','Geração']);
-  const aProd=pivot(empKey,lblEmp,cmpEmp,null);
-  X.utils.book_append_sheet(wb,wc,'Gerados Completo');
-  X.utils.book_append_sheet(wb,wv,'Gerados Vale');
-  X.utils.book_append_sheet(wb,sheet(aGer,40,13),'Resumo Gerentes');
-  X.utils.book_append_sheet(wb,sheet(aDia,40,11),'Resumo Geração');
-  X.utils.book_append_sheet(wb,sheet(aProd,40,13),'Produto');
-  X.writeFile(wb,'Relatorio-Contratos-Gerados-'+expStamp()+'.xlsx',{cellDates:true});
+  const AR={font:{name:'Arial',size:10},border:BORD,alignment:{vertical:'bottom'}};
+  const sumSheet=(name,aoa,widths)=>{
+    const ws=wb.addWorksheet(name);
+    ws.columns=aoa[0].length?Array.from({length:Math.max(...aoa.map(r=>r.length))},(_,i)=>({width:widths[i]||8.43})):[];
+    aoa.forEach(rw=>{const r=ws.addRow(rw.map(cell));r.height=12.5;for(let i=1;i<=ws.columns.length;i++)r.getCell(i).style=AR});
+  };
+  sumSheet('Resumo Gerentes ',pivot(empKey,lblEmp,cmpEmp,['Contagem de Produto','Empreendimento'],'Total Geral'),XS.ger);
+  sumSheet('Resumo Geração',pivot(r=>r.data,D,(a,b)=>a.localeCompare(b),['Contagem de Produto','Geração'],'Total Geral'),XS.dia);
+  sumSheet('Produto',pivot(empKey,lblEmp,cmpEmp,null,''),XS.prod);
+  const buf=await wb.xlsx.writeBuffer();
+  expSave(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Relatorio-Contratos-Gerados-'+expStamp()+'.xlsx');
 }
 $('btnXls').onclick=function(){
   if(!expReady(this))return;
   if(!src){const t=this.textContent;this.textContent='Suba o arquivo de novo (1 vez)';setTimeout(()=>this.textContent=t,3500);return}
-  expBusy(this,async()=>expXlsx());
+  expBusy(this,expXlsx);
 };
 })();
 
