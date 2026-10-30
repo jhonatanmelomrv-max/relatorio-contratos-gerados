@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Relatório de Contratos Gerados</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: cabeçalho com arquivo/ações, filtros, faixa de totais, ranking de gerentes ao lado dos gerados por dia, depois empreendimentos e a lista de vendas. */
+:root{
+  --bg:#f2f5f3; --surface:#ffffff; --ink:#13201a; --muted:#5b6a62; --line:#dae2dd; --soft:#eaf0ec;
+  --accent:#0e7a52; --accent-ink:#ffffff; --open:#d99a2b; --warn-bg:#fff4dc; --warn-ink:#6b4a05;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Instrument Sans","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1713; --surface:#16211b; --ink:#e7efe9; --muted:#97a89e; --line:#27362d; --soft:#1d2b23;
+  --accent:#3fc08c; --accent-ink:#06150e; --open:#e0a63d; --warn-bg:#3a2d10; --warn-ink:#f2d58f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1713; --surface:#16211b; --ink:#e7efe9; --muted:#97a89e; --line:#27362d; --soft:#1d2b23;
+  --accent:#3fc08c; --accent-ink:#06150e; --open:#e0a63d; --warn-bg:#3a2d10; --warn-ink:#f2d58f; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--f-body);
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2{font-family:var(--f-display);margin:0;text-wrap:balance}
+h1{font-size:26px;line-height:1.1;letter-spacing:-.01em}
+h2{font-size:16px}
+.num{font-variant-numeric:tabular-nums}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between}
+.top .meta{color:var(--muted);margin-top:6px;min-width:0}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.banner{background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.banner[hidden]{display:none}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:14px 16px;color:var(--muted);text-align:center;transition:.15s}
+body.dragging .drop,.drop:hover{border-color:var(--accent);color:var(--ink);background:var(--soft)}
+.filters{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.grp>span{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-right:2px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.search{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;min-width:0;flex:1 1 200px;max-width:320px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.kpi b{display:block;font:700 30px/1.1 var(--f-display);margin-top:4px;letter-spacing:-.01em}
+.kpi small{color:var(--muted)}
+.kpi.main b{color:var(--accent)}
+.cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.cols{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.card h2{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:12px}
+.card h2 small{font:400 12px var(--f-body);color:var(--muted)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.rows{display:flex;flex-direction:column;gap:4px}
+.row{display:grid;grid-template-columns:minmax(90px,200px) minmax(0,1fr) auto;gap:10px;align-items:center;border:0;background:none;text-align:left;padding:5px 6px;border-radius:8px;width:100%}
+.row:hover{background:var(--soft)}
+.row[aria-pressed="true"]{background:var(--soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.row .nm em{display:block;font-style:normal;font-size:11px;color:var(--muted)}
+.bar{display:flex;gap:2px;height:16px;min-width:0}
+.bar i{display:block;height:100%;border-radius:0 4px 4px 0;min-width:0}
+.bar i:first-child{border-radius:0 4px 4px 0}
+.g{background:var(--accent)} .o{background:var(--open)}
+.row .v{text-align:right;white-space:nowrap}
+.row .v small{display:block;color:var(--muted);font-size:11px}
+.row.zero .nm{color:var(--muted)}
+.plot{position:relative;height:190px;margin-left:30px;border-bottom:1px solid var(--line)}
+.grid{position:absolute;left:0;right:0;border-top:1px solid var(--line);opacity:.7}
+.grid span{position:absolute;left:-30px;top:-8px;width:24px;text-align:right;font-size:11px;color:var(--muted)}
+.days{position:absolute;inset:0;display:flex;gap:3px;align-items:flex-end}
+.day{flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;position:relative}
+.day i{display:block;width:100%;background:var(--accent);border-radius:3px 3px 0 0;min-height:0}
+.day.max i{background:var(--accent)}
+.day:hover i{filter:brightness(1.15)}
+.dl{display:flex;gap:3px;margin:6px 0 0 30px;font-size:11px;color:var(--muted)}
+.dl span{flex:1;text-align:center;min-width:0;overflow:visible;white-space:nowrap}
+.tip{position:fixed;z-index:50;pointer-events:none;background:var(--ink);color:var(--bg);padding:7px 10px;border-radius:8px;font-size:12px;max-width:260px;opacity:0;transition:opacity .08s}
+.tip.on{opacity:1}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+td.wrapc{white-space:normal;min-width:160px}
+th{position:sticky;top:0;background:var(--soft);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+th button{all:unset;cursor:pointer}
+th button:focus-visible{outline:2px solid var(--accent)}
+tbody tr:hover{background:var(--soft)}
+.pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600}
+.pill.g{background:var(--accent);color:var(--accent-ink)}
+.pill.o{background:var(--open);color:#2a1c00}
+td.r,th.r{text-align:right}
+.cfg textarea{width:100%;min-height:230px;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.cfg p{margin:6px 0 10px;color:var(--muted)}
+.empty{color:var(--muted);padding:18px;text-align:center}
+.note{color:var(--muted);font-size:12px}
+.status{color:var(--muted)}
+#gest{min-width:760px}
+#gest td.r,#gest th.r{text-align:right}
+.tg{all:unset;cursor:pointer;display:inline-flex;gap:8px;align-items:center;font-weight:600}
+.tg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tg::before{content:"▸";color:var(--muted);transition:transform .12s}
+.tg[aria-expanded="true"]::before{transform:rotate(90deg)}
+tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
+.si{display:flex;flex-wrap:wrap;gap:2px 14px;padding:5px 0;border-bottom:1px dashed var(--line);align-items:center}
+.si:last-child{border-bottom:0}
+.si .c{flex:1 1 180px;min-width:0}
+.tot td{font-weight:700;background:var(--soft)}
+.more{display:flex;justify-content:center;margin-top:10px}
+.more[hidden]{display:none}
+.hl{color:var(--muted);margin:0 0 10px}
+.hl b{color:var(--ink)}
+.mat{min-width:0;width:auto}
+.mat th,.mat td{text-align:center;padding:6px 7px;min-width:34px}
+.mat th{font-size:11px}
+.mat th:first-child,.mat td:first-child{position:sticky;left:0;text-align:left;min-width:190px;background:var(--surface);z-index:1}
+.mat th:first-child{background:var(--soft);z-index:2}
+.mat tr.tot td:first-child{background:var(--soft)}
+.mat td.t{font-weight:700}
+.tabs{display:flex;gap:2px;overflow-x:auto;border-bottom:1px solid var(--line)}
+.tab{border:0;background:none;padding:10px 16px;font-weight:500;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap;margin-bottom:-1px}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);font-weight:600;border-bottom-color:var(--accent)}
+.h2r{display:flex;gap:6px}
+.h2r .btn{padding:4px 10px;font-size:12px}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Relatório de Contratos Gerados</h1>
+      <div class="meta" id="meta">Carregando…</div>
+    </div>
+    <div class="actions">
+      <label class="btn primary" for="file" tabindex="0" id="pick">Subir o gerados</label>
+      <input id="file" type="file" accept=".xls,.xlsx,.csv" hidden>
+      <button class="btn" id="btnCfg" type="button" aria-expanded="false">Gerentes da lista</button>
+      <button class="btn" id="btnCopy" type="button">Copiar tabela</button>
+      <button class="btn" id="btnClear" type="button">Limpar painel</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <section class="card cfg" id="cfg" hidden>
+    <h2>Gerentes da lista <small id="cfgCount"></small></h2>
+    <p>Um nome por linha, igual ao da coluna "Superior Direto do Corretor". Acento e maiúscula não importam. O painel conta todos os gerados desses gerentes, de qualquer corretor, loja ou canal.</p>
+    <textarea id="mgrText" spellcheck="false"></textarea>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn primary" id="cfgSave" type="button">Salvar lista</button>
+      <button class="btn" id="cfgReset" type="button">Voltar à lista original</button>
+    </div>
+  </section>
+
+  <div class="drop" id="drop">Arraste o arquivo de gerados aqui, ou use "Subir o gerados". Os dados são lidos só no seu navegador e não vão para nenhum servidor.</div>
+
+  <div class="filters">
+    <div class="grp" id="fCanal"><span>Canal</span></div>
+    <div class="grp" id="fStatus"><span>Situação</span></div>
+    <input class="search" id="q" type="search" placeholder="Buscar cliente, corretor, empreendimento…" aria-label="Buscar">
+    <button class="chip" id="clearMgr" type="button" hidden></button>
+  </div>
+
+  <section class="kpis" id="kpis"></section>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Abas do painel"></nav>
+
+  <section class="card" id="secGestao">
+    <h2>Visão de gestão <span class="h2r"><button class="btn" id="openAll" type="button">Abrir todos</button><button class="btn" id="closeAll" type="button">Fechar todos</button></span></h2>
+    <p class="hl" id="gestNote"></p>
+    <div class="tablewrap"><table id="gest"></table></div>
+    <p class="note" style="margin:8px 0 0">Clique no nome do gerente para ver as vendas dele.</p>
+  </section>
+
+  <section class="card" id="secMatEmp">
+    <h2>Resumo por empreendimento <small>gerados de cada gerente em cada empreendimento</small></h2>
+    <div class="tablewrap"><table class="mat" id="matEmp"></table></div>
+  </section>
+
+  <section class="card" id="secMatDia">
+    <h2>Resumo por dia <small>gerados de cada gerente em cada dia de geração</small></h2>
+    <div class="tablewrap"><table class="mat" id="matDia"></table></div>
+  </section>
+
+  <div class="cols" id="secCols">
+    <section class="card">
+      <h2>Gerados por gerente <small>clique num gerente para filtrar tudo</small></h2>
+      <div class="legend"><span><i class="g"></i>Ganha</span><span><i class="o"></i>Em andamento / pré-ganho</span></div>
+      <div class="rows" id="ranking"></div>
+    </section>
+    <section class="card">
+      <h2>Gerados por dia <small id="dayInfo"></small></h2>
+      <div class="plot" id="plot"></div>
+      <div class="dl" id="dl"></div>
+    </section>
+  </div>
+
+  <section class="card" id="secEmps">
+    <h2>Por empreendimento <small>quantidade de gerados</small></h2>
+    <div class="rows" id="emps"></div>
+  </section>
+
+  <section class="card" id="secLista">
+    <h2>Vendas geradas <small id="tblInfo"></small></h2>
+    <div class="tablewrap"><table id="tbl"></table></div>
+    <div class="more" id="moreWrap"><button class="btn" id="more" type="button"></button></div>
+  </section>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+const DEFAULTS=["ANA CAROLINA GARCIA GOMES DOS SANTOS","ANA KARINA FARIA MELO","ANDRE NOGUEIRA DE ARAUJO LUCENA","ERIK ALVES MOURA","FABIO LUIS JACINTO SILVA","JAQUELINE JANAINA DA SILVA NUNCIATTO","JHONATAN ALIX DOS SANTOS MELO","KATIA CRISTINA BELTRAN","LUCAS DOS SANTOS RIBEIRO","RAFAEL DE MENEZES TORRES","RENAN OLIVEIRA FORTES","SHIRLEY FERREIRA LOPES"];
+const $=id=>document.getElementById(id);
+const norm=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const nf=new Intl.NumberFormat('pt-BR');
+const brl=v=>'R$ '+new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+const money=v=>v>=1e6?'R$ '+(v/1e6).toFixed(2).replace('.',',')+' mi':'R$ '+Math.round(v/1e3)+' mil';
+const SMALL=new Set(['DA','DE','DO','DAS','DOS','DI','E']);
+const title=s=>String(s||'').toLowerCase().split(' ').map(w=>w&&(SMALL.has(w.toUpperCase())?w:w[0].toUpperCase()+w.slice(1))).join(' ');
+const short=s=>title(String(s).split(' ').filter(w=>!SMALL.has(w)).slice(0,2).join(' ').toLowerCase());
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+
+let managers=DEFAULTS.slice();
+try{const m=JSON.parse(lsGet('gg_managers')||'null');if(Array.isArray(m)&&m.length)managers=m}catch(e){}
+let raw=null;            // todas as linhas lidas do arquivo (só na memória)
+let data=null;           // {name, at, total, rows, example}
+let sel={canal:'Todos',status:'Todos',mgr:null,q:''};
+let sort={k:'data',dir:-1};
+
+/* ---------- leitura do arquivo ---------- */
+function isoFrom(v){
+  if(v instanceof Date&&!isNaN(v)){const d=new Date(v.getTime()+43200000);return d.toISOString().slice(0,10)}
+  if(typeof v==='number'&&v>20000){return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10)}
+  const s=String(v||'').trim();let m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if(m)return m[3]+'-'+m[2]+'-'+m[1];
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:'';
+}
+function parseWorkbook(wb){
+  let best=null;
+  wb.SheetNames.forEach(name=>{
+    const ws=wb.Sheets[name];if(!ws)return;
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+    for(let h=0;h<Math.min(8,aoa.length);h++){
+      const hdr=aoa[h].map(norm);
+      const i=n=>hdr.indexOf(n);
+      if(i('SUPERIOR DIRETO DO CORRETOR')>-1&&i('CLIENTE')>-1&&i('CORRETOR')>-1){
+        const n=aoa.length-h-1;
+        if(!best||n>best.n)best={n,name,h,aoa,hdr};
+        break;
+      }
+    }
+  });
+  if(!best)throw new Error('Não achei as colunas "Superior Direto do Corretor" e "Cliente" em nenhuma aba. Confira se é o relatório de gerados.');
+  const {aoa,hdr,h}=best;const ix=n=>hdr.indexOf(n);
+  const c={sup:ix('SUPERIOR DIRETO DO CORRETOR'),cor:ix('CORRETOR'),cli:ix('CLIENTE'),emp:ix('EMPREENDIMENTO'),blo:ix('BLOCO'),uni:ix('PRODUTO'),loja:ix('LOJA'),canal:ix('TIPO CANAL'),st:ix('STATUS DA OPORTUNIDADE'),val:ix('VALOR DA PROPOSTA'),ger:ix('GERACAO'),reg:ix('REGIONAL'),cid:ix('CIDADE')};
+  const out=[];
+  for(let r=h+1;r<aoa.length;r++){
+    const x=aoa[r];if(!x||!String(x[c.sup]||'').trim())continue;
+    const stt=norm(x[c.st]);
+    out.push({sup:norm(x[c.sup]),cor:norm(x[c.cor]),cli:String(x[c.cli]||'').trim(),emp:String(x[c.emp]||'').trim(),blo:String(x[c.blo]||'').trim(),uni:String(x[c.uni]==null?'':x[c.uni]),loja:String(x[c.loja]||'').trim(),canal:String(x[c.canal]||'').trim()||'—',
+      st:stt.startsWith('GANH')?'g':(stt.startsWith('PRE')?'p':'a'),stTxt:String(x[c.st]||'').trim(),val:Number(x[c.val])||0,data:isoFrom(x[c.ger]),reg:String(x[c.reg]||'').trim(),cid:String(x[c.cid]||'').trim()});
+  }
+  return {rows:out,sheet:best.name};
+}
+function applyList(){
+  if(!raw)return;
+  const set=new Set(managers.map(norm));
+  const rows=raw.filter(r=>set.has(r.sup));
+  data={name:data&&data.name,at:data&&data.at,total:raw.length,rows,example:false};
+  persist();
+}
+function persist(){
+  if(!data||data.example)return;
+  lsSet('gg_data',JSON.stringify({name:data.name,at:data.at,total:data.total,rows:data.rows}));
+}
+function loadFile(f){
+  if(!f)return;
+  setMeta('Lendo '+esc(f.name)+'… arquivos grandes levam alguns segundos.');
+  const fr=new FileReader();
+  fr.onerror=()=>setMeta('Não consegui abrir o arquivo.');
+  fr.onload=()=>setTimeout(()=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(fr.result),{type:'array',cellDates:true});
+      const p=parseWorkbook(wb);raw=p.rows;
+      const set=new Set(managers.map(norm));
+      data={name:f.name,at:Date.now(),total:raw.length,rows:raw.filter(r=>set.has(r.sup)),example:false};
+      sel.mgr=null;persist();render();
+    }catch(e){setMeta('<b>Erro:</b> '+esc(e.message||e))}
+  },30);
+  fr.readAsArrayBuffer(f);
+}
+
+/* ---------- dados de exemplo ---------- */
+function sample(){
+  let s=7;const rnd=()=>(s=(s*16807)%2147483647)/2147483647;
+  const emps=['Residencial Campo di Espanha','Residencial Sabiá','Residencial Tibre','Residencial Tulle','Caminho dos Alecrins','Campo do Cerrado'];
+  const lojas=['Loja Virtual Exemplo 1','Loja Virtual Exemplo 2','Loja Imob Exemplo'];
+  const rows=[];
+  DEFAULTS.forEach((m,mi)=>{
+    const n=Math.round(2+rnd()*rnd()*22+(mi===0?14:0));
+    for(let i=0;i<n;i++){
+      const d=1+Math.floor(rnd()*29),l=Math.floor(rnd()*3);
+      rows.push({sup:m,cor:'CORRETOR EXEMPLO '+(1+Math.floor(rnd()*9)),cli:'Cliente exemplo '+(rows.length+1),emp:emps[Math.floor(rnd()*emps.length)],blo:'Bloco '+(1+Math.floor(rnd()*4)),uni:String(100+Math.floor(rnd()*900)),loja:lojas[l],canal:l===2?'IMOB':'Virtual',
+        st:rnd()<.8?'g':(rnd()<.5?'p':'a'),val:Math.round((250000+rnd()*120000)/100)*100,data:'2026-10-'+String(d).padStart(2,'0'),reg:'VALE',cid:'—'});
+    }
+  });
+  return {name:'Dados de exemplo',at:Date.now(),total:rows.length,rows,example:true};
+}
+
+/* ---------- filtros ---------- */
+function pass(r,ignoreMgr){
+  if(sel.canal!=='Todos'&&r.canal!==sel.canal)return false;
+  if(sel.status==='Ganha'&&r.st!=='g')return false;
+  if(sel.status==='Em andamento'&&r.st==='g')return false;
+  if(!ignoreMgr&&sel.mgr&&r.sup!==sel.mgr)return false;
+  if(sel.q){const t=norm(r.cli+' '+r.cor+' '+r.emp+' '+r.loja+' '+r.sup);if(!sel.q.split(' ').every(w=>t.includes(w)))return false}
+  return true;
+}
+
+/* ---------- desenho ---------- */
+function setMeta(h){$('meta').innerHTML=h}
+function chips(el,label,opts,key,counts){
+  el.innerHTML='<span>'+label+'</span>'+opts.map(o=>'<button class="chip" type="button" data-k="'+key+'" data-v="'+esc(o)+'" aria-pressed="'+(sel[key]===o)+'">'+esc(o)+(counts&&counts[o]!=null?' <span class="num">'+counts[o]+'</span>':'')+'</button>').join('');
+}
+function render(){
+  const rows=data.rows;
+  const when=data.at?new Date(data.at).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'';
+  setMeta(data.empty?'Nenhum arquivo carregado ainda':'Arquivo <b>'+esc(data.name||'')+'</b> · lido em '+when+' · '+nf.format(data.total)+' registros no arquivo, '+nf.format(rows.length)+' dos gerentes da lista');
+  const b=$('banner');
+  if(data.empty){b.hidden=false;b.innerHTML='<span><b>Ainda não há números aqui.</b> Use o botão "Subir o gerados" (ou arraste o arquivo para a página). Só depois disso o painel mostra os gerados dos gerentes.</span>'}
+  else if(data.example){b.hidden=false;b.innerHTML='<span><b>Dados de exemplo.</b> Os nomes e números abaixo são inventados. Suba o relatório de gerados e o painel se monta sozinho.</span>'}
+  else if(!rows.length){b.hidden=false;b.innerHTML='<span><b>Nenhum gerado encontrado</b> para os gerentes da lista neste arquivo. Confira a lista em "Gerentes da lista".</span>'}
+  else b.hidden=true;
+
+  const canais={Todos:rows.length};rows.forEach(r=>canais[r.canal]=(canais[r.canal]||0)+1);
+  chips($('fCanal'),'Canal',['Todos'].concat(Object.keys(canais).filter(k=>k!=='Todos').sort()),'canal',canais);
+  const sc={Todos:rows.length,'Ganha':rows.filter(r=>r.st==='g').length,'Em andamento':rows.filter(r=>r.st!=='g').length};
+  chips($('fStatus'),'Situação',['Todos','Ganha','Em andamento'],'status',sc);
+  const cm=$('clearMgr');cm.hidden=!sel.mgr;if(sel.mgr)cm.textContent='Gerente: '+short(sel.mgr)+'  ✕';
+
+  const f=rows.filter(r=>pass(r));
+  applyVis();kpis(f);gest(rows);matrices(rows);ranking(rows);days(f,rows);emps(f);table(f);
+}
+const EMP_ORDER=['CERRADO','PAMPAS','ITAQUERA','GARDEN','COLINA','MATA','MEDEIROS','CEREJEIRAS','PITANGUEIRAS','ALECRINS','JERIVAS','ESPANHA','SABIA','TIBRE','TULLE','VIRGINIA','FRANCIS','DANTE'];
+const empKey=r=>{const w=norm(r.emp).split(' ');return w[w.length-1]||''};
+function matrix(rows,id,keyOf,labelOf,cmp){
+  const lst=managers.map(norm).sort((a,b)=>a.localeCompare(b));
+  const cell={},ct={};
+  rows.forEach(r=>{if(!pass(r,true))return;const c=keyOf(r);if(!c||!lst.includes(r.sup))return;(cell[r.sup]=cell[r.sup]||{})[c]=(cell[r.sup][c]||0)+1;ct[c]=(ct[c]||0)+1});
+  const cols=Object.keys(ct).sort(cmp);
+  if(!cols.length){$(id).innerHTML='<tbody><tr><td class="empty">Sem gerados com esses filtros.</td></tr></tbody>';return}
+  let max=1;lst.forEach(m=>cols.forEach(c=>{max=Math.max(max,(cell[m]||{})[c]||0)}));
+  const head='<thead><tr><th>Gerente</th>'+cols.map(c=>'<th>'+esc(labelOf(c))+'</th>').join('')+'<th>Total</th></tr></thead>';
+  const body=lst.map(m=>{const row=cell[m]||{};let t=0;
+    const tds=cols.map(c=>{const v=row[c]||0;t+=v;if(!v)return '<td></td>';const p=v/max;return '<td class="num" style="background:color-mix(in srgb,var(--accent) '+Math.round(14+p*66)+'%,var(--surface));color:'+(p>.55?'var(--accent-ink)':'var(--ink)')+'">'+v+'</td>'}).join('');
+    return '<tr><td>'+esc(title(m.toLowerCase()))+'</td>'+tds+'<td class="num t">'+t+'</td></tr>'}).join('');
+  const all=cols.reduce((a,c)=>a+ct[c],0);
+  const foot='<tr class="tot"><td>Total geral</td>'+cols.map(c=>'<td class="num">'+ct[c]+'</td>').join('')+'<td class="num">'+all+'</td></tr>';
+  $(id).innerHTML=head+'<tbody>'+body+foot+'</tbody>';
+}
+function matrices(rows){
+  matrix(rows,'matEmp',empKey,c=>c,(a,b)=>{const i=EMP_ORDER.indexOf(a),j=EMP_ORDER.indexOf(b);return (i<0?99:i)-(j<0?99:j)||a.localeCompare(b)});
+  matrix(rows,'matDia',r=>r.data,c=>c.slice(8),(a,b)=>a.localeCompare(b));
+}
+const TABS=[['gestao','Visão de gestão',['secGestao']],['emp','Resumo Gerentes',['secMatEmp']],['dia','Resumo Geração',['secMatDia']],['vale','Gerados Vale',['secLista']],['graf','Gráficos',['secCols','secEmps']]];
+const ALLSEC=['secGestao','secMatEmp','secMatDia','secLista','secCols','secEmps'];
+let tab=(()=>{const h=(location.hash||'').slice(1),t=lsGet('gg_tab');const ok=x=>TABS.some(y=>y[0]===x);return ok(h)?h:(ok(t)?t:'gestao')})();
+let showAll=false;const openSet=new Set();
+function applyVis(){
+  $('tabs').innerHTML=TABS.map(t=>'<button class="tab" type="button" role="tab" data-tab="'+t[0]+'" aria-selected="'+(tab===t[0])+'">'+t[1]+'</button>').join('');
+  const on=TABS.find(t=>t[0]===tab)[2];
+  ALLSEC.forEach(id=>{$(id).hidden=!on.includes(id)});
+}
+const dm=d=>d?d.split('-').reverse().slice(0,2).join('/'):'—';
+function gest(rows){
+  const by={};managers.forEach(m=>{const k=norm(m);by[k]={m:k,l:[]}});
+  rows.forEach(r=>{if(pass(r,true)&&by[r.sup])by[r.sup].l.push(r)});
+  const list=Object.values(by).sort((a,b)=>b.l.length-a.l.length||a.m.localeCompare(b.m));
+  const all=list.reduce((a,x)=>a.concat(x.l),[]);
+  const none=list.filter(x=>!x.l.length).map(x=>short(x.m));
+  const topV=list.slice().sort((a,b)=>b.l.reduce((s,r)=>s+r.val,0)-a.l.reduce((s,r)=>s+r.val,0))[0];
+  $('gestNote').innerHTML=all.length?('Mais gerados: <b>'+esc(short(list[0].m))+'</b> ('+list[0].l.length+'). Maior VGV: <b>'+esc(short(topV.m))+'</b> ('+money(topV.l.reduce((s,r)=>s+r.val,0))+').'+(none.length?' Sem gerado: <b>'+esc(none.join(', '))+'</b>.':' Todos os gerentes tiveram gerado.')):'Sem gerados com esses filtros.';
+  let tg=0,tgan=0,tv=0;
+  const head='<thead><tr><th>Gerente</th><th class="r">Gerados</th><th class="r">Ganhas</th><th class="r">Em andamento</th><th class="r">% ganhas</th><th class="r">VGV</th><th class="r">Ticket médio</th><th class="r">Corretores</th><th class="r">Último</th></tr></thead>';
+  const body=list.map(x=>{
+    const n=x.l.length,g=x.l.filter(r=>r.st==='g').length,v=x.l.reduce((a,r)=>a+r.val,0);
+    tg+=n;tgan+=g;tv+=v;
+    const op=openSet.has(x.m),last=x.l.reduce((a,r)=>r.data>a?r.data:a,'');
+    let h='<tr><td><button class="tg" type="button" data-open="'+esc(x.m)+'" aria-expanded="'+op+'">'+esc(title(x.m.toLowerCase()))+'</button></td><td class="r num"><b>'+n+'</b></td><td class="r num">'+g+'</td><td class="r num">'+(n-g)+'</td><td class="r num">'+(n?Math.round(g/n*100)+'%':'—')+'</td><td class="r num">'+(n?money(v):'—')+'</td><td class="r num">'+(n?money(v/n):'—')+'</td><td class="r num">'+new Set(x.l.map(r=>r.cor)).size+'</td><td class="r num">'+dm(last)+'</td></tr>';
+    if(op){
+      const ls=x.l.slice().sort((a,b)=>b.data.localeCompare(a.data));
+      h+='<tr class="sub"><td colspan="9">'+(ls.length?ls.map(r=>'<div class="si"><span class="num">'+dm(r.data)+'</span><span class="c"><b>'+esc(title(r.cli.toLowerCase()))+'</b> · '+esc(title(r.emp.replace(/^RESIDENCIAL /i,'').toLowerCase()))+' '+esc(r.uni)+'</span><span>'+esc(title(r.cor.toLowerCase()))+'</span><span class="pill '+(r.st==='g'?'g':'o')+'">'+(r.st==='g'?'Ganha':r.st==='p'?'Pré-ganho':'Em andamento')+'</span><span class="num">'+brl(r.val)+'</span></div>').join(''):'<div class="note">Nenhum gerado com esses filtros.</div>')+'</td></tr>';
+    }
+    return h;
+  }).join('');
+  const foot='<tr class="tot"><td>Total</td><td class="r num">'+tg+'</td><td class="r num">'+tgan+'</td><td class="r num">'+(tg-tgan)+'</td><td class="r num">'+(tg?Math.round(tgan/tg*100)+'%':'—')+'</td><td class="r num">'+(tg?money(tv):'—')+'</td><td class="r num">'+(tg?money(tv/tg):'—')+'</td><td></td><td></td></tr>';
+  $('gest').innerHTML=head+'<tbody>'+body+foot+'</tbody>';
+}
+function kpis(f){
+  const g=f.filter(r=>r.st==='g').length,v=f.reduce((a,r)=>a+r.val,0);
+  const items=[['main','Gerados',nf.format(f.length),'contratos gerados'],['','Ganhas',nf.format(g),f.length?Math.round(g/f.length*100)+'% dos gerados':'—'],['','Em andamento',nf.format(f.length-g),'inclui pré-ganho'],['','VGV gerado',money(v),brl(v)],['','Ticket médio',f.length?money(v/f.length):'—','valor da proposta']];
+  $('kpis').innerHTML=items.map(i=>'<div class="kpi '+i[0]+'"><small>'+i[1]+'</small><b class="num">'+i[2]+'</b><small>'+i[3]+'</small></div>').join('');
+}
+function ranking(rows){
+  const set=new Set();raw&&raw.forEach(r=>set.add(r.sup));
+  const by={};managers.forEach(m=>by[norm(m)]={m:norm(m),g:0,o:0,v:0});
+  rows.forEach(r=>{if(!pass(r,true))return;const x=by[r.sup];if(!x)return;r.st==='g'?x.g++:x.o++;x.v+=r.val});
+  const list=Object.values(by).sort((a,b)=>(b.g+b.o)-(a.g+a.o)||b.v-a.v||a.m.localeCompare(b.m));
+  const max=Math.max(1,...list.map(x=>x.g+x.o));
+  $('ranking').innerHTML=list.map(x=>{
+    const t=x.g+x.o,miss=raw&&!set.has(x.m);
+    return '<button class="row'+(t?'':' zero')+'" type="button" data-mgr="'+esc(x.m)+'" aria-pressed="'+(sel.mgr===x.m)+'" data-tip="'+esc(title(x.m.toLowerCase())+' — '+t+' gerados ('+x.g+' ganhas, '+x.o+' em andamento) · '+brl(x.v))+'">'
+      +'<span class="nm">'+esc(title(x.m.toLowerCase()))+(miss?'<em>nome não encontrado no arquivo</em>':'')+'</span>'
+      +'<span class="bar"><i class="g" style="width:'+(x.g/max*100)+'%"></i><i class="o" style="width:'+(x.o/max*100)+'%"></i></span>'
+      +'<span class="v num"><b>'+t+'</b><small>'+(t?money(x.v):'—')+'</small></span></button>';
+  }).join('');
+}
+function days(f,all){
+  const ds=all.map(r=>r.data).filter(Boolean).sort();
+  if(!ds.length){$('plot').innerHTML='<div class="empty">Sem datas de geração.</div>';$('dl').innerHTML='';$('dayInfo').textContent='';return}
+  const a=new Date(ds[0]+'T12:00:00Z'),z=new Date(ds[ds.length-1]+'T12:00:00Z');
+  const keys=[];for(let d=new Date(a);d<=z&&keys.length<400;d=new Date(d.getTime()+864e5))keys.push(d.toISOString().slice(0,10));
+  const cnt={};f.forEach(r=>{if(r.data)cnt[r.data]=(cnt[r.data]||0)+1});
+  const vals=keys.map(k=>cnt[k]||0),m=Math.max(1,...vals);
+  const step=m<=4?1:m<=10?2:m<=25?5:10,top=Math.ceil(m/step)*step;
+  let grid='';for(let t=0;t<=top;t+=step){if(t===0)continue;grid+='<div class="grid" style="bottom:'+(t/top*100)+'%"><span class="num">'+t+'</span></div>'}
+  $('plot').innerHTML=grid+'<div class="days">'+keys.map((k,i)=>'<div class="day" data-tip="'+k.split('-').reverse().join('/')+' — '+vals[i]+' gerado'+(vals[i]===1?'':'s')+'"><i style="height:'+(vals[i]/top*100)+'%"></i></div>').join('')+'</div>';
+  const w=Math.max(120,$('plot').clientWidth),per=Math.max(1,Math.ceil(keys.length/Math.floor(w/26)));
+  $('dl').innerHTML=keys.map((k,i)=>'<span class="num">'+(i%per===0?k.slice(8):'')+'</span>').join('');
+  const tot=vals.reduce((x,y)=>x+y,0);
+  $('dayInfo').textContent=(keys[0].slice(5).split('-').reverse().join('/'))+' a '+keys[keys.length-1].slice(5).split('-').reverse().join('/')+' · média '+(tot/keys.length).toFixed(1).replace('.',',')+' por dia';
+}
+function emps(f){
+  const by={};f.forEach(r=>{const k=title(r.emp.replace(/^RESIDENCIAL /i,'').toLowerCase());by[k]=(by[k]||{g:0,o:0});r.st==='g'?by[k].g++:by[k].o++});
+  const list=Object.entries(by).sort((a,b)=>(b[1].g+b[1].o)-(a[1].g+a[1].o));
+  const max=Math.max(1,...list.map(x=>x[1].g+x[1].o));
+  $('emps').innerHTML=list.length?list.map(([k,x])=>'<div class="row" style="cursor:default" data-tip="'+esc(k+' — '+(x.g+x.o)+' gerados ('+x.g+' ganhas, '+x.o+' em andamento)')+'"><span class="nm">'+esc(k)+'</span><span class="bar"><i class="g" style="width:'+(x.g/max*100)+'%"></i><i class="o" style="width:'+(x.o/max*100)+'%"></i></span><span class="v num"><b>'+(x.g+x.o)+'</b></span></div>').join(''):'<div class="empty">Nada para mostrar com esses filtros.</div>';
+}
+const COLS=[['data','Gerado em'],['sup','Gerente'],['cor','Corretor'],['cli','Cliente'],['emp','Empreendimento'],['uni','Un.'],['loja','Loja'],['canal','Canal'],['st','Situação'],['val','Valor','r']];
+let shown=[];
+function table(f){
+  const k=sort.k,d=sort.dir;
+  shown=f.slice().sort((a,b)=>{const x=a[k],y=b[k];return (typeof x==='number'?x-y:String(x).localeCompare(String(y),'pt-BR',{numeric:true}))*d});
+  $('tblInfo').textContent=nf.format(shown.length)+' vendas no total · '+brl(shown.reduce((a,r)=>a+r.val,0))+(!showAll&&shown.length>20?' · mostrando as 20 primeiras':'');
+  const head='<thead><tr>'+COLS.map(c=>'<th class="'+(c[2]||'')+'" aria-sort="'+(sort.k===c[0]?(sort.dir>0?'ascending':'descending'):'none')+'"><button type="button" data-sort="'+c[0]+'">'+c[1]+(sort.k===c[0]?(sort.dir>0?' ↑':' ↓'):'')+'</button></th>').join('')+'</tr></thead>';
+  const PREV=20;const part=showAll?shown:shown.slice(0,PREV);
+  $('moreWrap').hidden=shown.length<=PREV;$('more').textContent=showAll?'Mostrar só as '+PREV+' primeiras':'Mostrar as '+nf.format(shown.length)+' vendas';
+  const body=shown.length?part.map(r=>'<tr><td class="num">'+(r.data?r.data.split('-').reverse().join('/'):'')+'</td><td>'+esc(short(r.sup))+'</td><td>'+esc(title(r.cor.toLowerCase()))+'</td><td class="wrapc">'+esc(title(r.cli.toLowerCase()))+'</td><td>'+esc(title(r.emp.replace(/^RESIDENCIAL /i,'').toLowerCase())+(r.blo?' · '+title(r.blo.toLowerCase()):''))+'</td><td class="num">'+esc(r.uni)+'</td><td>'+esc(r.loja)+'</td><td>'+esc(r.canal)+'</td><td><span class="pill '+(r.st==='g'?'g':'o')+'">'+(r.st==='g'?'Ganha':r.st==='p'?'Pré-ganho':'Em andamento')+'</span></td><td class="r num">'+brl(r.val)+'</td></tr>').join(''):'<tr><td colspan="10" class="empty">Nenhuma venda com esses filtros.</td></tr>';
+  $('tbl').innerHTML=head+'<tbody>'+body+'</tbody>';
+}
+
+/* ---------- eventos ---------- */
+document.addEventListener('click',e=>{
+  const c=e.target.closest('[data-k]');if(c){sel[c.dataset.k]=c.dataset.v;render();return}
+  const tb=e.target.closest('[data-tab]');if(tb){tab=tb.dataset.tab;lsSet('gg_tab',tab);try{history.replaceState(null,'','#'+tab)}catch(x){try{location.hash=tab}catch(y){}}render();return}
+  const op=e.target.closest('[data-open]');if(op){const k=op.dataset.open;openSet.has(k)?openSet.delete(k):openSet.add(k);gest(data.rows);return}
+  const r=e.target.closest('[data-mgr]');if(r){sel.mgr=sel.mgr===r.dataset.mgr?null:r.dataset.mgr;render();return}
+  const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;sort=sort.k===k?{k,dir:-sort.dir}:{k,dir:(k==='data'||k==='val')?-1:1};table(data.rows.filter(x=>pass(x)));return}
+});
+$('btnClear').onclick=()=>{try{localStorage.removeItem('gg_data')}catch(e){}raw=null;data={name:'',at:0,total:0,rows:[],example:false,empty:true};sel={canal:'Todos',status:'Todos',mgr:null,q:''};$('q').value='';openSet.clear();showAll=false;render()};
+$('more').onclick=()=>{showAll=!showAll;table(data.rows.filter(x=>pass(x)))};
+$('openAll').onclick=()=>{managers.forEach(m=>openSet.add(norm(m)));gest(data.rows)};
+$('closeAll').onclick=()=>{openSet.clear();gest(data.rows)};
+$('clearMgr').onclick=()=>{sel.mgr=null;render()};
+$('q').addEventListener('input',e=>{sel.q=norm(e.target.value);render()});
+$('file').addEventListener('change',e=>{loadFile(e.target.files[0]);e.target.value=''});
+$('pick').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('file').click()}});
+['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();document.body.classList.add('dragging')}));
+['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();document.body.classList.remove('dragging')}));
+document.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files[0];if(f)loadFile(f)});
+$('btnCfg').onclick=()=>{const h=$('cfg').hidden;$('cfg').hidden=!h;$('btnCfg').setAttribute('aria-expanded',String(h));if(h){$('mgrText').value=managers.join('\n');$('cfgCount').textContent=managers.length+' nomes'}};
+$('cfgSave').onclick=()=>{
+  const l=[...new Set($('mgrText').value.split('\n').map(norm).filter(Boolean))];if(!l.length)return;
+  managers=l;lsSet('gg_managers',JSON.stringify(l));$('cfgCount').textContent=l.length+' nomes';sel.mgr=null;
+  if(raw)applyList();else if(data&&!data.example){setMeta('Lista salva. Suba o arquivo de novo para aplicar a lista nova.')}
+  render();
+};
+$('cfgReset').onclick=()=>{$('mgrText').value=DEFAULTS.join('\n')};
+$('btnCopy').onclick=()=>{
+  const tsv=[COLS.map(c=>c[1]).join('\t')].concat(shown.map(r=>[r.data.split('-').reverse().join('/'),title(r.sup.toLowerCase()),title(r.cor.toLowerCase()),title(r.cli.toLowerCase()),title(r.emp.toLowerCase()),r.uni,r.loja,r.canal,r.stTxt||(r.st==='g'?'Ganha':'Em Andamento'),String(r.val).replace('.',',')].join('\t'))).join('\n');
+  const done=()=>{$('btnCopy').textContent='Copiado ✓';setTimeout(()=>$('btnCopy').textContent='Copiar tabela',1600)};
+  const fb=()=>{const t=document.createElement('textarea');t.value=tsv;document.body.appendChild(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove()};
+  navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(tsv).then(done,fb):fb();
+};
+const tip=$('tip');
+document.addEventListener('mousemove',e=>{
+  const t=e.target.closest&&e.target.closest('[data-tip]');
+  if(!t){tip.classList.remove('on');return}
+  tip.textContent=t.dataset.tip;tip.classList.add('on');
+  const w=tip.offsetWidth;tip.style.left=Math.min(innerWidth-w-8,e.clientX+14)+'px';tip.style.top=(e.clientY+16)+'px';
+});
+let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>data&&days(data.rows.filter(r=>pass(r)),data.rows),120)});
+
+/* ---------- início ---------- */
+try{const s=JSON.parse(lsGet('gg_data')||'null');if(s&&Array.isArray(s.rows)&&s.rows.length)data=Object.assign(s,{example:false})}catch(e){}
+if(!data)data={name:'',at:0,total:0,rows:[],example:false,empty:true};
+render();
+window.__gg={parseWorkbook,loadFile};
+})();
+</script>
+
+</body>
+</html>
