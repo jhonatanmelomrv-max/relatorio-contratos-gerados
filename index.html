@@ -285,7 +285,8 @@ function parseWorkbook(wb){
     out.push({sup:norm(x[c.sup]),cor:norm(x[c.cor]),cli:String(x[c.cli]||'').trim(),emp:String(x[c.emp]||'').trim(),blo:String(x[c.blo]||'').trim(),uni:String(x[c.uni]==null?'':x[c.uni]),loja:String(x[c.loja]||'').trim(),canal:String(x[c.canal]||'').trim()||'—',
       st:stt.startsWith('GANH')?'g':(stt.startsWith('PRE')?'p':'a'),stTxt:String(x[c.st]||'').trim(),val:Number(x[c.val])||0,data:isoFrom(x[c.ger]),reg:String(x[c.reg]||'').trim(),cid:String(x[c.cid]||'').trim()});
   }
-  return {rows:out,sheet:best.name,src:{head:aoa.slice(0,h+1),body:aoa.slice(h+1).filter(x=>x&&String(x[c.sup]||'').trim()),supCol:c.sup}};
+  return {rows:out,sheet:best.name,src:(()=>{const keep=[];aoa[h].forEach((x,i)=>{if(String(x==null?'':x).trim())keep.push(i)});const pick=x=>keep.map(i=>x[i]);
+    return {head:[pick(aoa[h])],body:aoa.slice(h+1).filter(x=>x&&String(x[c.sup]||'').trim()).map(pick),supCol:keep.indexOf(c.sup)}})()};
 }
 function applyList(){
   if(!raw)return;
