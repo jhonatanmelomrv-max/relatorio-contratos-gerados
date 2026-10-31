@@ -705,7 +705,17 @@ async function expXlsx(){
   };
   sumSheet('Resumo Gerentes ',pivot(empKey,lblEmp,cmpEmp,['Contagem de Produto','Empreendimento'],'Total Geral'),XS.ger);
   sumSheet('Resumo Geração',pivot(r=>r.data,D,(a,b)=>a.localeCompare(b),['Contagem de Produto','Geração'],'Total Geral'),XS.dia);
-  sumSheet('Produto',pivot(empKey,lblEmp,cmpEmp,null,''),XS.prod);
+  // Produto: a linha "Total Geral" conta as vendas de TODOS (qualquer diretoria), por empreendimento
+  const prodAoa=pivot(empKey,lblEmp,cmpEmp,null,'');
+  {
+    const base=raw&&raw.length?raw:rows,nm=x=>norm(x.emp).replace(/\s+/g,' ');
+    const names={};rows.forEach(r=>{const k=empKey(r);if(k)(names[k]=names[k]||new Set()).add(nm(r))});
+    const cols=Object.keys(names).sort(cmpEmp);
+    const tot=cols.map(c=>base.reduce((n,r)=>n+(names[c].has(nm(r))?1:0),0));
+    const reg3=base.reduce((n,r)=>n+(['VALE','CAMPINAS','SAO PAULO'].includes(norm(r.reg))?1:0),0);
+    prodAoa.push(['Total Geral'].concat(tot,[reg3||tot.reduce((a,b)=>a+b,0)]));
+  }
+  sumSheet('Produto',prodAoa,XS.prod);
   const buf=await wb.xlsx.writeBuffer();
   expSave(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Relatorio-Contratos-Gerados-'+expStamp()+'.xlsx');
 }
