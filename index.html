@@ -414,6 +414,8 @@ function applyVis(){
   ALLSEC.forEach(id=>{$(id).hidden=!on.includes(id)});
 }
 const dm=d=>d?d.split('-').reverse().slice(0,2).join('/'):'—';
+/* participação no total, com uma casa decimal (ex.: 21,7%) */
+const pct=(n,t)=>t?(n/t*100).toFixed(1).replace('.',',')+'%':'—';
 function gest(rows){
   const by={};managers.forEach(m=>{const k=norm(m);by[k]={m:k,l:[]}});
   rows.forEach(r=>{if(pass(r,true)&&by[r.sup])by[r.sup].l.push(r)});
@@ -423,19 +425,19 @@ function gest(rows){
   const topV=list.slice().sort((a,b)=>b.l.reduce((s,r)=>s+r.val,0)-a.l.reduce((s,r)=>s+r.val,0))[0];
   $('gestNote').innerHTML=all.length?('Mais gerados: <b>'+esc(short(list[0].m))+'</b> ('+list[0].l.length+'). Maior VGV: <b>'+esc(short(topV.m))+'</b> ('+money(topV.l.reduce((s,r)=>s+r.val,0))+').'+(none.length?' Sem gerado: <b>'+esc(none.join(', '))+'</b>.':' Todos os gerentes tiveram gerado.')):'Sem gerados com esses filtros.';
   let tg=0,tgan=0,tv=0;
-  const head='<thead><tr><th>Gerente</th><th class="r">Gerados</th><th class="r">Ganhas</th><th class="r">Em andamento</th><th class="r">% ganhas</th><th class="r">VGV</th><th class="r">Ticket médio</th><th class="r">Corretores</th><th class="r">Último</th></tr></thead>';
+  const head='<thead><tr><th>Gerente</th><th class="r">Gerados</th><th class="r" title="Quanto os gerados deste gerente representam no total da regional (todos os gerentes da lista)">% da regional</th><th class="r">Ganhas</th><th class="r">Em andamento</th><th class="r">% ganhas</th><th class="r">VGV</th><th class="r">Ticket médio</th><th class="r">Corretores</th><th class="r">Último</th></tr></thead>';
   const body=list.map(x=>{
     const n=x.l.length,g=x.l.filter(r=>r.st==='g').length,v=x.l.reduce((a,r)=>a+r.val,0);
     tg+=n;tgan+=g;tv+=v;
     const op=openSet.has(x.m),last=x.l.reduce((a,r)=>r.data>a?r.data:a,'');
-    let h='<tr><td><button class="tg" type="button" data-open="'+esc(x.m)+'" aria-expanded="'+op+'">'+esc(title(x.m.toLowerCase()))+'</button></td><td class="r num"><b>'+n+'</b></td><td class="r num">'+g+'</td><td class="r num">'+(n-g)+'</td><td class="r num">'+(n?Math.round(g/n*100)+'%':'—')+'</td><td class="r num">'+(n?money(v):'—')+'</td><td class="r num">'+(n?money(v/n):'—')+'</td><td class="r num">'+new Set(x.l.map(r=>r.cor)).size+'</td><td class="r num">'+dm(last)+'</td></tr>';
+    let h='<tr><td><button class="tg" type="button" data-open="'+esc(x.m)+'" aria-expanded="'+op+'">'+esc(title(x.m.toLowerCase()))+'</button></td><td class="r num"><b>'+n+'</b></td><td class="r num">'+pct(n,all.length)+'</td><td class="r num">'+g+'</td><td class="r num">'+(n-g)+'</td><td class="r num">'+(n?Math.round(g/n*100)+'%':'—')+'</td><td class="r num">'+(n?money(v):'—')+'</td><td class="r num">'+(n?money(v/n):'—')+'</td><td class="r num">'+new Set(x.l.map(r=>r.cor)).size+'</td><td class="r num">'+dm(last)+'</td></tr>';
     if(op){
       const ls=x.l.slice().sort((a,b)=>stRank(a)-stRank(b)||b.data.localeCompare(a.data));
-      h+='<tr class="sub"><td colspan="9">'+(ls.length?ls.map(r=>'<div class="si"><span class="num">'+dm(r.data)+'</span><span class="c"><b>'+esc(title(r.cli.toLowerCase()))+'</b> · '+esc(title(r.emp.replace(/^RESIDENCIAL /i,'').toLowerCase()))+' '+esc(r.uni)+'</span><span>'+esc(title(r.cor.toLowerCase()))+'</span><span class="pill '+(r.st==='g'?'g':'o')+'">'+(r.st==='g'?'Ganha':r.st==='p'?'Pré-ganho':'Em andamento')+'</span><span class="num">'+brl(r.val)+'</span></div>').join(''):'<div class="note">Nenhum gerado com esses filtros.</div>')+'</td></tr>';
+      h+='<tr class="sub"><td colspan="10">'+(ls.length?ls.map(r=>'<div class="si"><span class="num">'+dm(r.data)+'</span><span class="c"><b>'+esc(title(r.cli.toLowerCase()))+'</b> · '+esc(title(r.emp.replace(/^RESIDENCIAL /i,'').toLowerCase()))+' '+esc(r.uni)+'</span><span>'+esc(title(r.cor.toLowerCase()))+'</span><span class="pill '+(r.st==='g'?'g':'o')+'">'+(r.st==='g'?'Ganha':r.st==='p'?'Pré-ganho':'Em andamento')+'</span><span class="num">'+brl(r.val)+'</span></div>').join(''):'<div class="note">Nenhum gerado com esses filtros.</div>')+'</td></tr>';
     }
     return h;
   }).join('');
-  const foot='<tr class="tot"><td>Total</td><td class="r num">'+tg+'</td><td class="r num">'+tgan+'</td><td class="r num">'+(tg-tgan)+'</td><td class="r num">'+(tg?Math.round(tgan/tg*100)+'%':'—')+'</td><td class="r num">'+(tg?money(tv):'—')+'</td><td class="r num">'+(tg?money(tv/tg):'—')+'</td><td></td><td></td></tr>';
+  const foot='<tr class="tot"><td>Total</td><td class="r num">'+tg+'</td><td class="r num">'+(tg?'100%':'—')+'</td><td class="r num">'+tgan+'</td><td class="r num">'+(tg-tgan)+'</td><td class="r num">'+(tg?Math.round(tgan/tg*100)+'%':'—')+'</td><td class="r num">'+(tg?money(tv):'—')+'</td><td class="r num">'+(tg?money(tv/tg):'—')+'</td><td></td><td></td></tr>';
   $('gest').innerHTML=head+'<tbody>'+body+foot+'</tbody>';
 }
 function kpis(f){
