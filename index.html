@@ -177,6 +177,7 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
   <div class="filters">
     <div class="grp" id="fCanal"><span>Canal</span></div>
     <div class="grp" id="fStatus"><span>Situação</span></div>
+    <div class="grp" id="fOrdem"><span>Ordem</span></div>
     <input class="search" id="q" type="search" placeholder="Buscar cliente, corretor, empreendimento…" aria-label="Buscar">
     <button class="chip" id="clearMgr" type="button" hidden></button>
   </div>
@@ -256,7 +257,7 @@ async function idbGet(k){try{const d=await idb();return await new Promise((res,r
 async function idbDel(k){try{const d=await idb();await new Promise(res=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').delete(k);t.oncomplete=res;t.onerror=res})}catch(e){}}
 let raw=null;            // todas as linhas lidas do arquivo (só na memória)
 let data=null;           // {name, at, total, rows, example}
-let sel={canal:'Todos',status:'Todos',mgr:null,q:''};
+let sel={canal:'Todos',status:'Todos',ordem:'Por data',mgr:null,q:''};
 let sort={k:'data',dir:-1};
 
 /* ---------- leitura do arquivo ---------- */
@@ -350,6 +351,13 @@ function pass(r,ignoreMgr){
   return true;
 }
 
+/* Ordem da lista de vendas: qual situação fica em cima (0 = topo). Dentro de cada grupo vale a ordem normal. */
+function stRank(r){
+  if(sel.ordem==='Em andamento em cima')return r.st==='g'?1:0;
+  if(sel.ordem==='Ganhas em cima')return r.st==='g'?0:1;
+  return 0;
+}
+
 /* ---------- desenho ---------- */
 function setMeta(h){$('meta').innerHTML=h}
 function chips(el,label,opts,key,counts){
@@ -369,6 +377,7 @@ function render(){
   chips($('fCanal'),'Canal',['Todos'].concat(Object.keys(canais).filter(k=>k!=='Todos').sort()),'canal',canais);
   const sc={Todos:rows.length,'Ganha':rows.filter(r=>r.st==='g').length,'Em andamento':rows.filter(r=>r.st!=='g').length};
   chips($('fStatus'),'Situação',['Todos','Ganha','Em andamento'],'status',sc);
+  chips($('fOrdem'),'Ordem',['Por data','Em andamento em cima','Ganhas em cima'],'ordem');
   const cm=$('clearMgr');cm.hidden=!sel.mgr;if(sel.mgr)cm.textContent='Gerente: '+short(sel.mgr)+'  ✕';
 
   const f=rows.filter(r=>pass(r));
@@ -421,7 +430,7 @@ function gest(rows){
     const op=openSet.has(x.m),last=x.l.reduce((a,r)=>r.data>a?r.data:a,'');
     let h='<tr><td><button class="tg" type="button" data-open="'+esc(x.m)+'" aria-expanded="'+op+'">'+esc(title(x.m.toLowerCase()))+'</button></td><td class="r num"><b>'+n+'</b></td><td class="r num">'+g+'</td><td class="r num">'+(n-g)+'</td><td class="r num">'+(n?Math.round(g/n*100)+'%':'—')+'</td><td class="r num">'+(n?money(v):'—')+'</td><td class="r num">'+(n?money(v/n):'—')+'</td><td class="r num">'+new Set(x.l.map(r=>r.cor)).size+'</td><td class="r num">'+dm(last)+'</td></tr>';
     if(op){
-      const ls=x.l.slice().sort((a,b)=>b.data.localeCompare(a.data));
+      const ls=x.l.slice().sort((a,b)=>stRank(a)-stRank(b)||b.data.localeCompare(a.data));
       h+='<tr class="sub"><td colspan="9">'+(ls.length?ls.map(r=>'<div class="si"><span class="num">'+dm(r.data)+'</span><span class="c"><b>'+esc(title(r.cli.toLowerCase()))+'</b> · '+esc(title(r.emp.replace(/^RESIDENCIAL /i,'').toLowerCase()))+' '+esc(r.uni)+'</span><span>'+esc(title(r.cor.toLowerCase()))+'</span><span class="pill '+(r.st==='g'?'g':'o')+'">'+(r.st==='g'?'Ganha':r.st==='p'?'Pré-ganho':'Em andamento')+'</span><span class="num">'+brl(r.val)+'</span></div>').join(''):'<div class="note">Nenhum gerado com esses filtros.</div>')+'</td></tr>';
     }
     return h;
@@ -473,7 +482,7 @@ const COLS=[['data','Gerado em'],['sup','Gerente'],['cor','Corretor'],['cli','Cl
 let shown=[];
 function table(f){
   const k=sort.k,d=sort.dir;
-  shown=f.slice().sort((a,b)=>{const x=a[k],y=b[k];return (typeof x==='number'?x-y:String(x).localeCompare(String(y),'pt-BR',{numeric:true}))*d});
+  shown=f.slice().sort((a,b)=>{const s=stRank(a)-stRank(b);if(s)return s;const x=a[k],y=b[k];return (typeof x==='number'?x-y:String(x).localeCompare(String(y),'pt-BR',{numeric:true}))*d});
   $('tblInfo').textContent=nf.format(shown.length)+' vendas no total · '+brl(shown.reduce((a,r)=>a+r.val,0))+(!showAll&&shown.length>20?' · mostrando as 20 primeiras':'');
   const head='<thead><tr>'+COLS.map(c=>'<th class="'+(c[2]||'')+'" aria-sort="'+(sort.k===c[0]?(sort.dir>0?'ascending':'descending'):'none')+'"><button type="button" data-sort="'+c[0]+'">'+c[1]+(sort.k===c[0]?(sort.dir>0?' ↑':' ↓'):'')+'</button></th>').join('')+'</tr></thead>';
   const PREV=20;const part=showAll?shown:shown.slice(0,PREV);
@@ -535,7 +544,7 @@ const API='https://n8n.equipemaster.shop/webhook/';
 let CODE='';try{CODE=sessionStorage.getItem('gg_code')||''}catch(e){}
 function applyLock(){document.body.classList.toggle('lock',!CODE);$('btnAcesso').textContent=CODE?'Sair do acesso':'Acesso para atualizar'}
 function lock(){CODE='';try{sessionStorage.removeItem('gg_code')}catch(e){}applyLock()}
-function clearLocal(){try{localStorage.removeItem('gg_data')}catch(e){}raw=null;src=null;idbDel('src');data={name:'',at:0,total:0,rows:[],example:false,empty:true};sel={canal:'Todos',status:'Todos',mgr:null,q:''};$('q').value='';openSet.clear();showAll=false;render()}
+function clearLocal(){try{localStorage.removeItem('gg_data')}catch(e){}raw=null;src=null;idbDel('src');data={name:'',at:0,total:0,rows:[],example:false,empty:true};sel={canal:'Todos',status:'Todos',ordem:'Por data',mgr:null,q:''};$('q').value='';openSet.clear();showAll=false;render()}
 function askCode(then){
   $('codeIn').value='';$('codeMsg').textContent='';$('codeBox').hidden=false;$('codeIn').focus();
   const go=async()=>{const v=$('codeIn').value.trim();if(!v){$('codeMsg').textContent='Digite o código.';return}
