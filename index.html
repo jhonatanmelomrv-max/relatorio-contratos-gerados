@@ -491,7 +491,7 @@ function drawRep(id,list,what,lim){
   $(id).innerHTML='<div class="rk-hd">'
     +'<div class="rk-st"><small>Maior fatia</small><b class="num">'+pct(act[0].n,tn)+'</b><span>'+esc(act[0].m)+'</span></div>'
     +'<div class="rk-st"><small>Os 3 maiores</small><b class="num">'+pct(top3,tn)+'</b><span>'+nf.format(top3)+' de '+nf.format(tn)+' gerados</span></div>'
-    +'<div class="rk-st"><small>'+what[0]+'</small><b class="num">'+act.length+'</b><span>com gerado no período</span></div></div>'
+    +'<div class="rk-st"><small>'+what[0]+'</small><b class="num">'+act.length+'</b><span>com gerado</span></div></div>'
     +show.map(row).join('')+(rest?row(rest):'');
   return tn;
 }
@@ -499,10 +499,10 @@ function repChart(rows,f){
   const by={};managers.forEach(m=>by[norm(m)]={m:title(norm(m).toLowerCase()),n:0,v:0});
   rows.forEach(r=>{if(!pass(r,true))return;const x=by[r.sup];if(!x)return;x.n++;x.v+=r.val});
   const tn=drawRep('rep',Object.values(by),['Gerentes','gerentes']);
-  $('repInfo').textContent=tn?'% dos '+nf.format(tn)+' gerados da regional':'';
+  $('repInfo').textContent=tn?'% de '+nf.format(tn)+' gerados':'';
   const be={};f.forEach(r=>{const k=title(r.emp.replace(/^RESIDENCIAL /i,'').toLowerCase());(be[k]=be[k]||{m:k,n:0,v:0}).n++;be[k].v+=r.val});
   const te=drawRep('repEmp',Object.values(be),['Empreendimentos','empreendimentos'],11);
-  $('repEmpInfo').textContent=te?'% dos '+nf.format(te)+' gerados'+(sel.mgr?' de '+short(sel.mgr):' da regional'):'';
+  $('repEmpInfo').textContent=te?'% de '+nf.format(te)+' gerados'+(sel.mgr?' · '+short(sel.mgr):''):'';
 }
 function ranking(rows){
   const set=new Set();raw&&raw.forEach(r=>set.add(r.sup));
