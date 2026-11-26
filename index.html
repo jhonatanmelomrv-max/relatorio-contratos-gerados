@@ -203,6 +203,11 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
     <div class="tablewrap"><table class="mat" id="matDia"></table></div>
   </section>
 
+  <section class="card" id="secRep">
+    <h2>Representatividade na regional <small id="repInfo"></small></h2>
+    <div class="rows" id="rep"></div>
+  </section>
+
   <div class="cols" id="secCols">
     <section class="card">
       <h2>Gerados por gerente <small>clique num gerente para filtrar tudo</small></h2>
@@ -381,7 +386,7 @@ function render(){
   const cm=$('clearMgr');cm.hidden=!sel.mgr;if(sel.mgr)cm.textContent='Gerente: '+short(sel.mgr)+'  ✕';
 
   const f=rows.filter(r=>pass(r));
-  applyVis();kpis(f);gest(rows);matrices(rows);ranking(rows);days(f,rows);emps(f);table(f);
+  applyVis();kpis(f);gest(rows);matrices(rows);repChart(rows);ranking(rows);days(f,rows);emps(f);table(f);
 }
 const EMP_ORDER=['CERRADO','PAMPAS','ITAQUERA','GARDEN','COLINA','MATA','MEDEIROS','CEREJEIRAS','PITANGUEIRAS','ALECRINS','JERIVAS','ESPANHA','SABIA','TIBRE','TULLE','VIRGINIA','FRANCIS','DANTE'];
 const empKey=r=>{const w=norm(r.emp).split(' ');return w[w.length-1]||''};
@@ -404,8 +409,8 @@ function matrices(rows){
   matrix(rows,'matEmp',empKey,c=>c,(a,b)=>{const i=EMP_ORDER.indexOf(a),j=EMP_ORDER.indexOf(b);return (i<0?99:i)-(j<0?99:j)||a.localeCompare(b)});
   matrix(rows,'matDia',r=>r.data,c=>c.slice(8),(a,b)=>a.localeCompare(b));
 }
-const TABS=[['gestao','Visão de gestão',['secGestao']],['emp','Resumo Gerentes',['secMatEmp']],['dia','Resumo Geração',['secMatDia']],['vale','Gerados Vale',['secLista']],['graf','Gráficos',['secCols','secEmps']]];
-const ALLSEC=['secGestao','secMatEmp','secMatDia','secLista','secCols','secEmps'];
+const TABS=[['gestao','Visão de gestão',['secGestao']],['emp','Resumo Gerentes',['secMatEmp']],['dia','Resumo Geração',['secMatDia']],['vale','Gerados Vale',['secLista']],['graf','Gráficos',['secRep','secCols','secEmps']]];
+const ALLSEC=['secGestao','secMatEmp','secMatDia','secLista','secRep','secCols','secEmps'];
 let tab=(()=>{const h=(location.hash||'').slice(1),t=lsGet('gg_tab');const ok=x=>TABS.some(y=>y[0]===x);return ok(h)?h:(ok(t)?t:'gestao')})();
 let showAll=false;const openSet=new Set();
 function applyVis(){
@@ -444,6 +449,18 @@ function kpis(f){
   const g=f.filter(r=>r.st==='g').length,v=f.reduce((a,r)=>a+r.val,0);
   const items=[['main','Gerados',nf.format(f.length),'contratos gerados'],['','Ganhas',nf.format(g),f.length?Math.round(g/f.length*100)+'% dos gerados':'—'],['','Em andamento',nf.format(f.length-g),'inclui pré-ganho'],['','VGV gerado',money(v),brl(v)],['','Ticket médio',f.length?money(v/f.length):'—','valor da proposta']];
   $('kpis').innerHTML=items.map(i=>'<div class="kpi '+i[0]+'"><small>'+i[1]+'</small><b class="num">'+i[2]+'</b><small>'+i[3]+'</small></div>').join('');
+}
+/* Representatividade: quanto cada gerente pesa no total de gerados (e de VGV) da regional, com os filtros ligados */
+function repChart(rows){
+  const by={};managers.forEach(m=>by[norm(m)]={m:norm(m),n:0,v:0});
+  rows.forEach(r=>{if(!pass(r,true))return;const x=by[r.sup];if(!x)return;x.n++;x.v+=r.val});
+  const list=Object.values(by).sort((a,b)=>b.n-a.n||b.v-a.v||a.m.localeCompare(b.m));
+  const tn=list.reduce((a,x)=>a+x.n,0),tv=list.reduce((a,x)=>a+x.v,0),max=Math.max(1,...list.map(x=>x.n));
+  $('repInfo').textContent=tn?'parte de cada gerente nos '+nf.format(tn)+' gerados da regional':'';
+  $('rep').innerHTML=tn?list.map(x=>'<div class="row'+(x.n?'':' zero')+'" style="cursor:default" data-tip="'+esc(title(x.m.toLowerCase())+' — '+x.n+' de '+tn+' gerados ('+pct(x.n,tn)+') · '+pct(x.v,tv)+' do VGV')+'">'
+    +'<span class="nm">'+esc(title(x.m.toLowerCase()))+'</span>'
+    +'<span class="bar"><i style="background:var(--accent);width:'+(x.n/max*100)+'%"></i></span>'
+    +'<span class="v num"><b>'+pct(x.n,tn)+'</b><small>'+x.n+' gerados · '+pct(x.v,tv)+' do VGV</small></span></div>').join(''):'<div class="note">Sem gerados com esses filtros.</div>';
 }
 function ranking(rows){
   const set=new Set();raw&&raw.forEach(r=>set.add(r.sup));
