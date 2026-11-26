@@ -76,6 +76,8 @@ body.dragging .drop,.drop:hover{border-color:var(--accent);color:var(--ink);back
 .rk-track{grid-column:2/-1;height:8px;background:var(--soft);border-radius:4px;overflow:hidden}
 .rk-row:hover .rk-track{background:var(--line)}
 .rk-track i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.rk-row.pick{cursor:pointer}
+.rk-row.pick.on{background:var(--soft);box-shadow:inset 3px 0 0 var(--accent)}
 .rk-row.rest .nm,.rk-row.zero .nm{color:var(--muted);font-weight:400}
 .rk-row.rest .rk-track i{background:var(--muted)}
 @media (max-width:520px){.rk-row .mt{display:none}.rk-hd{grid-template-columns:minmax(0,1fr)}}
@@ -228,7 +230,7 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
       <div class="rk" id="rep"></div>
     </section>
     <section class="card">
-      <h2>Representatividade por empreendimento <small id="repEmpInfo"></small></h2>
+      <h2><span id="repEmpTitle">Representatividade por empreendimento</span> <small id="repEmpInfo"></small></h2>
       <div class="rk" id="repEmp"></div>
     </section>
   </div>
@@ -484,7 +486,7 @@ function drawRep(id,list,what,lim){
   let show=list,rest=null;
   if(lim&&list.length>lim+1){show=list.slice(0,lim);const r=list.slice(lim);rest={m:'Demais '+r.length+' '+what[1],n:r.reduce((a,x)=>a+x.n,0),v:r.reduce((a,x)=>a+x.v,0),rest:true}}
   const max=Math.max(1,...show.map(x=>x.n),rest?rest.n:0);
-  const row=(x,i)=>'<div class="rk-row'+(x.rest?' rest':x.n?'':' zero')+'" data-tip="'+esc(x.m+' — '+x.n+' de '+tn+' gerados ('+pct(x.n,tn)+') · '+brl(x.v)+' ('+pct(x.v,tv)+' do VGV)')+'">'
+  const row=(x,i)=>'<div class="rk-row'+(x.rest?' rest':x.n?'':' zero')+(x.k?' pick'+(sel.mgr===x.k?' on':''):'')+'"'+(x.k?' data-mgr="'+esc(x.k)+'" role="button" tabindex="0" aria-pressed="'+(sel.mgr===x.k)+'"':'')+' data-tip="'+esc(x.m+' — '+x.n+' de '+tn+' gerados ('+pct(x.n,tn)+') · '+brl(x.v)+' ('+pct(x.v,tv)+' do VGV)')+'">'
     +'<span class="rkn num">'+(x.rest?'':i+1)+'</span><span class="nm">'+esc(x.m)+'</span>'
     +'<span class="mt num">'+x.n+' gerado'+(x.n===1?'':'s')+' · '+pct(x.v,tv)+' do VGV</span><span class="pc num">'+pct(x.n,tn)+'</span>'
     +'<span class="rk-track"><i style="width:'+(x.n/max*100)+'%"></i></span></div>';
@@ -496,13 +498,14 @@ function drawRep(id,list,what,lim){
   return tn;
 }
 function repChart(rows,f){
-  const by={};managers.forEach(m=>by[norm(m)]={m:title(norm(m).toLowerCase()),n:0,v:0});
+  const by={};managers.forEach(m=>by[norm(m)]={k:norm(m),m:title(norm(m).toLowerCase()),n:0,v:0});
   rows.forEach(r=>{if(!pass(r,true))return;const x=by[r.sup];if(!x)return;x.n++;x.v+=r.val});
   const tn=drawRep('rep',Object.values(by),['Gerentes','gerentes']);
-  $('repInfo').textContent=tn?'% de '+nf.format(tn)+' gerados':'';
+  $('repInfo').textContent=tn?'% de '+nf.format(tn)+' gerados · clique num gerente':'';
+  $('repEmpTitle').textContent='Representatividade por empreendimento'+(sel.mgr?' — '+short(sel.mgr):'');
   const be={};f.forEach(r=>{const k=title(r.emp.replace(/^RESIDENCIAL /i,'').toLowerCase());(be[k]=be[k]||{m:k,n:0,v:0}).n++;be[k].v+=r.val});
   const te=drawRep('repEmp',Object.values(be),['Empreendimentos','empreendimentos'],11);
-  $('repEmpInfo').textContent=te?'% de '+nf.format(te)+' gerados'+(sel.mgr?' · '+short(sel.mgr):''):'';
+  $('repEmpInfo').textContent=te?'% de '+nf.format(te)+' gerados'+(sel.mgr?' dele':''):'';
 }
 function ranking(rows){
   const set=new Set();raw&&raw.forEach(r=>set.add(r.sup));
