@@ -199,6 +199,7 @@ tr.sub>td{background:var(--soft);white-space:normal;padding:6px 10px 10px 34px}
     <div class="grp" id="fCanal"><span>Canal</span></div>
     <div class="grp" id="fStatus"><span>Situação</span></div>
     <div class="grp" id="fOrdem"><span>Ordem</span></div>
+    <div class="grp" id="fGsort"><span>Gerentes</span></div>
     <input class="search" id="q" type="search" placeholder="Buscar cliente, corretor, empreendimento…" aria-label="Buscar">
     <button class="chip" id="clearMgr" type="button" hidden></button>
   </div>
@@ -410,6 +411,7 @@ function render(){
   const sc={Todos:rows.length,'Ganha':rows.filter(r=>r.st==='g').length,'Em andamento':rows.filter(r=>r.st!=='g').length};
   chips($('fStatus'),'Situação',['Todos','Ganha','Em andamento'],'status',sc);
   chips($('fOrdem'),'Ordem',['Por data','Em andamento em cima','Ganhas em cima'],'ordem');
+  $('fGsort').innerHTML='<span>Gerentes</span>'+[['nome','A–Z'],['n','Mais gerados'],['g','Mais ganhas'],['v','Maior VGV']].map(o=>'<button class="chip" type="button" data-gchip="'+o[0]+'" aria-pressed="'+(gsort.k===o[0]&&gsort.dir===(o[0]==='nome'?1:-1))+'">'+o[1]+'</button>').join('');
   const cm=$('clearMgr');cm.hidden=!sel.mgr;if(sel.mgr)cm.textContent='Gerente: '+short(sel.mgr)+'  ✕';
 
   const f=rows.filter(r=>pass(r));
@@ -448,6 +450,7 @@ function applyVis(){
 const dm=d=>d?d.split('-').reverse().slice(0,2).join('/'):'—';
 /* participação no total, com uma casa decimal (ex.: 21,7%) */
 const pct=(n,t)=>t?(n/t*100).toFixed(1).replace('.',',')+'%':'—';
+let gsort={k:'n',dir:-1}; /* ordem da tabela de gestão: coluna e sentido */
 function gest(rows){
   const by={};managers.forEach(m=>{const k=norm(m);by[k]={m:k,l:[]}});
   rows.forEach(r=>{if(pass(r,true)&&by[r.sup])by[r.sup].l.push(r)});
@@ -457,7 +460,11 @@ function gest(rows){
   const topV=list.slice().sort((a,b)=>b.l.reduce((s,r)=>s+r.val,0)-a.l.reduce((s,r)=>s+r.val,0))[0];
   $('gestNote').innerHTML=all.length?('Mais gerados: <b>'+esc(short(list[0].m))+'</b> ('+list[0].l.length+'). Maior VGV: <b>'+esc(short(topV.m))+'</b> ('+money(topV.l.reduce((s,r)=>s+r.val,0))+').'+(none.length?' Sem gerado: <b>'+esc(none.join(', '))+'</b>.':' Todos os gerentes tiveram gerado.')):'Sem gerados com esses filtros.';
   let tg=0,tgan=0,tv=0;
-  const head='<thead><tr><th>Gerente</th><th class="r">Gerados</th><th class="r" title="Quanto os gerados deste gerente representam no total da regional (todos os gerentes da lista)">% da regional</th><th class="r">Ganhas</th><th class="r">Em andamento</th><th class="r">% ganhas</th><th class="r">VGV</th><th class="r">Ticket médio</th><th class="r">Corretores</th><th class="r">Último</th></tr></thead>';
+  const GM={nome:x=>x.m,n:x=>x.l.length,g:x=>x.l.filter(r=>r.st==='g').length,o:x=>x.l.filter(r=>r.st!=='g').length,pg:x=>x.l.length?x.l.filter(r=>r.st==='g').length/x.l.length:-1,v:x=>x.l.reduce((a,r)=>a+r.val,0),tk:x=>x.l.length?x.l.reduce((a,r)=>a+r.val,0)/x.l.length:-1,cor:x=>new Set(x.l.map(r=>r.cor)).size,ult:x=>x.l.reduce((a,r)=>r.data>a?r.data:a,'')};
+  const gf=GM[gsort.k]||GM.n;
+  list.sort((a,b)=>{const x=gf(a),y=gf(b);return ((typeof x==='number'?x-y:String(x).localeCompare(String(y),'pt-BR'))*gsort.dir)||b.l.length-a.l.length||a.m.localeCompare(b.m)});
+  const gh=(k,t,r,tip)=>'<th class="'+(r?'r':'')+'"'+(tip?' title="'+tip+'"':'')+' aria-sort="'+(gsort.k===k?(gsort.dir>0?'ascending':'descending'):'none')+'"><button type="button" data-gsort="'+k+'">'+t+(gsort.k===k?(gsort.dir>0?' ↑':' ↓'):'')+'</button></th>';
+  const head='<thead><tr>'+gh('nome','Gerente')+gh('n','Gerados',1)+gh('n','% da regional',1,'Quanto os gerados deste gerente representam no total da regional (todos os gerentes da lista)').replace(/ [↑↓]<\/button>/,'</button>')+gh('g','Ganhas',1)+gh('o','Em andamento',1)+gh('pg','% ganhas',1)+gh('v','VGV',1)+gh('tk','Ticket médio',1)+gh('cor','Corretores',1)+gh('ult','Último',1)+'</tr></thead>';
   const body=list.map(x=>{
     const n=x.l.length,g=x.l.filter(r=>r.st==='g').length,v=x.l.reduce((a,r)=>a+r.val,0);
     tg+=n;tgan+=g;tv+=v;
@@ -564,6 +571,8 @@ document.addEventListener('click',e=>{
   const c=e.target.closest('[data-k]');if(c){sel[c.dataset.k]=c.dataset.v;render();return}
   const tb=e.target.closest('[data-tab]');if(tb){tab=tb.dataset.tab;lsSet('gg_tab',tab);try{history.replaceState(null,'','#'+tab)}catch(x){try{location.hash=tab}catch(y){}}render();return}
   const op=e.target.closest('[data-open]');if(op){const k=op.dataset.open;openSet.has(k)?openSet.delete(k):openSet.add(k);gest(data.rows);return}
+  const gc=e.target.closest('[data-gchip]');if(gc){const k=gc.dataset.gchip;gsort={k,dir:k==='nome'?1:-1};render();return}
+  const gs=e.target.closest('[data-gsort]');if(gs){const k=gs.dataset.gsort;gsort=gsort.k===k?{k,dir:-gsort.dir}:{k,dir:k==='nome'?1:-1};render();return}
   const pe=e.target.closest('[data-emp]');if(pe){repEmpSel=repEmpSel===pe.dataset.emp?null:pe.dataset.emp;render();return}
   const r=e.target.closest('[data-mgr]');if(r){sel.mgr=sel.mgr===r.dataset.mgr?null:r.dataset.mgr;render();return}
   const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;sort=sort.k===k?{k,dir:-sort.dir}:{k,dir:(k==='data'||k==='val')?-1:1};table(data.rows.filter(x=>pass(x)));return}
